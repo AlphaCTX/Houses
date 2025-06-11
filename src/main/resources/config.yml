@@ -1,0 +1,9 @@
+max-houses-per-player: 3
+realtor-enabled: true
+language: EN
+database:
+  use-mysql: false
+  host: localhost
+  user: root
+  pass: password
+  database: houses
