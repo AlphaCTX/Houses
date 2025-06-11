@@ -71,6 +71,10 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         housesConfig = YamlConfiguration.loadConfiguration(housesFile);
     }
 
+    public void reloadPlugin() {
+        reloadConfig();
+        loadHouses();
+    }
     public void saveHouses() {
         try {
             housesConfig.save(housesFile);

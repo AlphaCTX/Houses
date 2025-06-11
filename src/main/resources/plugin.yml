@@ -6,3 +6,9 @@ depend: [Vault]
 commands:
   houses:
     description: House commands
+    permission: mchouses.use
+permissions:
+  mchouses.use:
+    default: true
+  mchouses.admin:
+    default: op
