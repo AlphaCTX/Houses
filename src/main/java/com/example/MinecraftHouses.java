@@ -75,7 +75,6 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         reloadConfig();
         loadHouses();
     }
-
     public void saveHouses() {
         try {
             housesConfig.save(housesFile);

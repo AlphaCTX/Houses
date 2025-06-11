@@ -76,4 +76,25 @@ public class HousesCommand implements CommandExecutor {
             p.sendMessage(ChatColor.AQUA + "/houses reload" + ChatColor.GRAY + " - reload configs");
         }
     }
+        if (args.length == 0 || args[0].equalsIgnoreCase("list")) {
+            p.sendMessage(ChatColor.YELLOW + "Houses:");
+            for (String id : cfg.getConfigurationSection("houses").getKeys(false)) {
+                String owner = cfg.getString("houses." + id + ".owner");
+                p.sendMessage(ChatColor.GRAY + "#" + id + " owner:" + (owner == null ? "none" : owner));
+            }
+            return true;
+        }
+        if (args[0].equalsIgnoreCase("owned")) {
+            p.sendMessage(ChatColor.YELLOW + "Owned houses:");
+            for (String id : cfg.getConfigurationSection("houses").getKeys(false)) {
+                String owner = cfg.getString("houses." + id + ".owner");
+                if (p.getUniqueId().toString().equals(owner)) {
+                    p.sendMessage(ChatColor.GREEN + "#" + id);
+                }
+            }
+            return true;
+        }
+        p.sendMessage(ChatColor.RED + "Unknown subcommand");
+        return true;
+    }
 }
