@@ -10,5 +10,5 @@ commands:
 permissions:
   mchouses.use:
     default: true
-  mchouses.admin:
+  houses.admin:
     default: op

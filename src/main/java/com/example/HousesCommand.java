@@ -54,8 +54,30 @@ public class HousesCommand implements CommandExecutor {
             }
             return true;
         }
+        if (args[0].equalsIgnoreCase("adddoor")) {
+            if (!p.hasPermission("houses.admin")) {
+                p.sendMessage(ChatColor.RED + "No permission");
+                return true;
+            }
+            if (args.length < 2) {
+                p.sendMessage(ChatColor.RED + "/houses adddoor <id>");
+                return true;
+            }
+            int id;
+            try {
+                id = Integer.parseInt(args[1]);
+            } catch (NumberFormatException ex) {
+                p.sendMessage(ChatColor.RED + "Invalid id");
+                return true;
+            }
+            plugin.awaitingDoorAdd.put(p.getUniqueId(), id);
+            plugin.awaitingDoorRemove.remove(p.getUniqueId());
+            p.sendMessage(ChatColor.GREEN + "Right click a door to add to house " + id);
+            return true;
+        }
+
         if (args[0].equalsIgnoreCase("reload")) {
-            if (!p.hasPermission("mchouses.admin")) {
+            if (!p.hasPermission("houses.admin")) {
                 p.sendMessage(ChatColor.RED + "No permission");
                 return true;
             }
@@ -72,29 +94,9 @@ public class HousesCommand implements CommandExecutor {
         p.sendMessage(ChatColor.YELLOW + "Available commands:");
         p.sendMessage(ChatColor.AQUA + "/houses list" + ChatColor.GRAY + " - list all houses");
         p.sendMessage(ChatColor.AQUA + "/houses owned" + ChatColor.GRAY + " - your houses");
-        if (p.hasPermission("mchouses.admin")) {
+        if (p.hasPermission("houses.admin")) {
+            p.sendMessage(ChatColor.AQUA + "/houses adddoor <id>" + ChatColor.GRAY + " - add a door to a house");
             p.sendMessage(ChatColor.AQUA + "/houses reload" + ChatColor.GRAY + " - reload configs");
         }
-    }
-        if (args.length == 0 || args[0].equalsIgnoreCase("list")) {
-            p.sendMessage(ChatColor.YELLOW + "Houses:");
-            for (String id : cfg.getConfigurationSection("houses").getKeys(false)) {
-                String owner = cfg.getString("houses." + id + ".owner");
-                p.sendMessage(ChatColor.GRAY + "#" + id + " owner:" + (owner == null ? "none" : owner));
-            }
-            return true;
-        }
-        if (args[0].equalsIgnoreCase("owned")) {
-            p.sendMessage(ChatColor.YELLOW + "Owned houses:");
-            for (String id : cfg.getConfigurationSection("houses").getKeys(false)) {
-                String owner = cfg.getString("houses." + id + ".owner");
-                if (p.getUniqueId().toString().equals(owner)) {
-                    p.sendMessage(ChatColor.GREEN + "#" + id);
-                }
-            }
-            return true;
-        }
-        p.sendMessage(ChatColor.RED + "Unknown subcommand");
-        return true;
     }
 }
