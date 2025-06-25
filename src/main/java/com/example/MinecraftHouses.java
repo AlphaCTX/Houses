@@ -39,6 +39,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
 
     private enum MarketFilter { ALL, AVAILABLE, OWNED }
     private final Map<UUID, MarketFilter> marketFilters = new HashMap<>();
+    private final Map<UUID, Integer> marketPages = new HashMap<>();
 
     @Override
     public void onEnable() {
@@ -404,12 +405,11 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     }
 
     public void openMarket(Player p, MarketFilter filter) {
-        marketFilters.put(p.getUniqueId(), filter);
-        Inventory inv = Bukkit.createInventory(null, 45, "House Market");
+        openMarket(p, filter, 0);
+    }
 
-        inv.setItem(0, createButton(Material.LIME_DYE, ChatColor.GREEN + "All"));
-        inv.setItem(1, createButton(Material.BLUE_DYE, ChatColor.BLUE + "Available"));
-        inv.setItem(2, createButton(Material.YELLOW_DYE, ChatColor.YELLOW + "Owned"));
+    public void openMarket(Player p, MarketFilter filter, int page) {
+        marketFilters.put(p.getUniqueId(), filter);
 
         List<Integer> ids = new ArrayList<>();
         if (housesConfig.isConfigurationSection("houses")) {
@@ -422,8 +422,20 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
             }
         }
 
-        for (int i = 0; i < Math.min(27, ids.size()); i++) {
-            int id = ids.get(i);
+        int pages = Math.max(1, (ids.size() + 26) / 27);
+        if (page < 0) page = 0;
+        if (page >= pages) page = pages - 1;
+        marketPages.put(p.getUniqueId(), page);
+
+        Inventory inv = Bukkit.createInventory(null, 45, "House Market");
+
+        inv.setItem(0, createButton(Material.LIME_DYE, ChatColor.GREEN + "All"));
+        inv.setItem(1, createButton(Material.BLUE_DYE, ChatColor.BLUE + "Available"));
+        inv.setItem(2, createButton(Material.YELLOW_DYE, ChatColor.YELLOW + "Owned"));
+
+        int start = page * 27;
+        for (int i = 0; i < 27 && start + i < ids.size(); i++) {
+            int id = ids.get(start + i);
             String path = "houses." + id;
             boolean rent = housesConfig.getBoolean(path + ".rent");
             double price = housesConfig.getDouble(path + ".price");
@@ -434,6 +446,14 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
                     ChatColor.GRAY + (rent ? "Rent" : "Buy")));
             item.setItemMeta(meta);
             inv.setItem(9 + i, item);
+        }
+
+        if (page > 0) {
+            inv.setItem(36, createButton(Material.ARROW, ChatColor.YELLOW + "Prev"));
+        }
+        inv.setItem(40, createButton(Material.PAPER, ChatColor.YELLOW + "Page " + (page + 1) + "/" + pages));
+        if (page < pages - 1) {
+            inv.setItem(44, createButton(Material.ARROW, ChatColor.YELLOW + "Next"));
         }
 
         p.openInventory(inv);
@@ -477,6 +497,8 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         action.setItemMeta(aMeta);
         inv.setItem(15, action);
 
+        inv.setItem(22, createButton(Material.ARROW, ChatColor.RED + "Back"));
+
         p.openInventory(inv);
     }
 
@@ -488,9 +510,13 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         if (title.equals("House Market")) {
             e.setCancelled(true);
             int slot = e.getRawSlot();
-            if (slot == 0) { openMarket(p, MarketFilter.ALL); return; }
-            if (slot == 1) { openMarket(p, MarketFilter.AVAILABLE); return; }
-            if (slot == 2) { openMarket(p, MarketFilter.OWNED); return; }
+            if (slot == 0) { openMarket(p, MarketFilter.ALL, 0); return; }
+            if (slot == 1) { openMarket(p, MarketFilter.AVAILABLE, 0); return; }
+            if (slot == 2) { openMarket(p, MarketFilter.OWNED, 0); return; }
+            MarketFilter filter = marketFilters.getOrDefault(p.getUniqueId(), MarketFilter.ALL);
+            int page = marketPages.getOrDefault(p.getUniqueId(), 0);
+            if (slot == 36) { openMarket(p, filter, page - 1); return; }
+            if (slot == 44) { openMarket(p, filter, page + 1); return; }
             if (slot >= 9 && slot < 36) {
                 ItemStack item = e.getCurrentItem();
                 if (item != null && item.hasItemMeta()) {
@@ -519,6 +545,10 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
                     sellHouse(p, id);
                     p.closeInventory();
                 }
+            } else if (name.equalsIgnoreCase("Back")) {
+                MarketFilter filter = marketFilters.getOrDefault(p.getUniqueId(), MarketFilter.ALL);
+                int page = marketPages.getOrDefault(p.getUniqueId(), 0);
+                openMarket(p, filter, page);
             }
         }
     }

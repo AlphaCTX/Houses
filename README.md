@@ -33,4 +33,7 @@ Commands:
 - `/houses untrust <id> <player>` – revoke door access
 - `/houses market` – open a GUI with all houses
 
+In the market GUI use the arrows to move between pages, and the house details
+screen includes a Back button to return.
+
 Only the owner of a house can interact with its doors.
