@@ -26,6 +26,9 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     private File housesFile;
     private FileConfiguration housesConfig;
 
+    public final Map<UUID, Integer> awaitingDoorAdd = new HashMap<>();
+    public final Map<UUID, Integer> awaitingDoorRemove = new HashMap<>();
+
     @Override
     public void onEnable() {
         if (!setupEconomy()) {
@@ -107,6 +110,10 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
             e.getPlayer().sendMessage(ChatColor.RED + "Invalid price");
             return;
         }
+        if (price <= 0) {
+            e.getPlayer().sendMessage(ChatColor.RED + "Price must be positive");
+            return;
+        }
         int id = housesConfig.getInt("lastId", 0) + 1;
         housesConfig.set("lastId", id);
         String path = "houses." + id;
@@ -131,12 +138,45 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         if (e.getAction() != Action.RIGHT_CLICK_BLOCK) return;
         Block block = e.getClickedBlock();
         if (block == null) return;
+        Player p = e.getPlayer();
         Material type = block.getType();
+
+        // handle door additions or removals
+        if (isDoor(type)) {
+            UUID uid = p.getUniqueId();
+            if (awaitingDoorAdd.containsKey(uid)) {
+                int id = awaitingDoorAdd.remove(uid);
+                addDoorToHouse(id, block);
+                p.sendMessage(ChatColor.GREEN + "Door added to house " + id);
+                e.setCancelled(true);
+                return;
+            }
+            if (awaitingDoorRemove.containsKey(uid)) {
+                int id = awaitingDoorRemove.remove(uid);
+                removeDoorFromHouse(id, block);
+                p.sendMessage(ChatColor.GREEN + "Door removed from house " + id);
+                e.setCancelled(true);
+                return;
+            }
+
+            int doorHouse = getHouseIdByDoor(block);
+            if (doorHouse != -1) {
+                String owner = housesConfig.getString("houses." + doorHouse + ".owner");
+                if (owner != null && !owner.equals(uid.toString())) {
+                    p.sendMessage(ChatColor.RED + "You don't own this house.");
+                    e.setCancelled(true);
+                    return;
+                }
+            }
+        }
+
+        // sign interactions
         if (!(type == Material.OAK_SIGN || type == Material.OAK_WALL_SIGN || type == Material.SPRUCE_SIGN || type == Material.SPRUCE_WALL_SIGN ||
                 type == Material.BIRCH_SIGN || type == Material.BIRCH_WALL_SIGN || type == Material.JUNGLE_SIGN || type == Material.JUNGLE_WALL_SIGN ||
                 type == Material.ACACIA_SIGN || type == Material.ACACIA_WALL_SIGN || type == Material.DARK_OAK_SIGN || type == Material.DARK_OAK_WALL_SIGN)) {
             return;
         }
+
         Sign sign = (Sign) block.getState();
         String line0 = ChatColor.stripColor(sign.getLine(0));
         if (!line0.equalsIgnoreCase("[House]") && !line0.equalsIgnoreCase("[Rent]")) return;
@@ -152,11 +192,25 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         boolean rent = housesConfig.getBoolean(path + ".rent");
         double price = housesConfig.getDouble(path + ".price");
         String owner = housesConfig.getString(path + ".owner");
-        Player p = e.getPlayer();
 
         if (owner == null) {
             p.sendMessage(ChatColor.YELLOW + (rent ? "Rent" : "Buy") + " price: " + price);
             if (p.isSneaking()) {
+                int max = getConfig().getInt("max-houses-per-player", 0);
+                if (max > 0) {
+                    int owned = 0;
+                    if (housesConfig.isConfigurationSection("houses")) {
+                        for (String hid : housesConfig.getConfigurationSection("houses").getKeys(false)) {
+                            if (p.getUniqueId().toString().equals(housesConfig.getString("houses." + hid + ".owner"))) {
+                                owned++;
+                            }
+                        }
+                    }
+                    if (owned >= max) {
+                        p.sendMessage(ChatColor.RED + "You have reached the house limit of " + max);
+                        return;
+                    }
+                }
                 if (economy.getBalance(p) >= price) {
                     economy.withdrawPlayer(p, price);
                     housesConfig.set(path + ".owner", p.getUniqueId().toString());
@@ -187,4 +241,49 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
             p.sendMessage(ChatColor.RED + "Someone else owns this.");
         }
     }
+
+    private boolean isDoor(Material m) {
+        return m.name().endsWith("_DOOR");
+    }
+
+    private String serialize(Block b) {
+        return b.getWorld().getName() + "," + b.getX() + "," + b.getY() + "," + b.getZ();
+    }
+
+    private void addDoorToHouse(int id, Block door) {
+        String path = "houses." + id + ".doors";
+        List<String> doors = housesConfig.getStringList(path);
+        String ser = serialize(door);
+        if (!doors.contains(ser)) {
+            doors.add(ser);
+            housesConfig.set(path, doors);
+            saveHouses();
+        }
+    }
+
+    private void removeDoorFromHouse(int id, Block door) {
+        String path = "houses." + id + ".doors";
+        List<String> doors = housesConfig.getStringList(path);
+        String ser = serialize(door);
+        if (doors.remove(ser)) {
+            housesConfig.set(path, doors);
+            saveHouses();
+        }
+    }
+
+    private int getHouseIdByDoor(Block b) {
+        if (!housesConfig.isConfigurationSection("houses")) return -1;
+        String ser = serialize(b);
+        for (String idStr : housesConfig.getConfigurationSection("houses").getKeys(false)) {
+            List<String> doors = housesConfig.getStringList("houses." + idStr + ".doors");
+            if (doors.contains(ser)) {
+                try {
+                    return Integer.parseInt(idStr);
+                } catch (NumberFormatException ignore) {
+                }
+            }
+        }
+        return -1;
+    }
+
 }
