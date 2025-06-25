@@ -92,7 +92,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onSignChange(SignChangeEvent e) {
-        if (!e.getPlayer().hasPermission("mchouses.admin")) return;
+        if (!e.getPlayer().hasPermission("houses.admin")) return;
         String line0 = ChatColor.stripColor(e.getLine(0));
         if ("[House]".equalsIgnoreCase(line0)) {
             createHouseSign(e, false);

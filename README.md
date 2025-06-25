@@ -4,13 +4,19 @@ A simple Spigot plugin that lets players buy or rent houses via signs. House dat
 
 ## Building
 
-Requires Maven and Java 8. Run:
+Requires Maven and Java 8. On Linux/macOS run:
 
 ```bash
 mvn package
 ```
 
 The resulting JAR can be found in `target/`.
+
+On Windows you can also use `build.bat` which will place the JAR in a `build` folder:
+
+```cmd
+build.bat
+```
 
 ## Usage
 
@@ -20,7 +26,7 @@ Commands:
 
 - `/houses list` – list all houses
 - `/houses owned` – list houses you own
-- `/houses door <add|remove> <id>` – add or remove a door to a house (right-click the door after running the command)
+- `/houses adddoor <id>` – link a door to a house (admin, right-click the door after running the command)
 - `/houses reload` – reload configuration (admin only)
 
 Only the owner of a house can interact with its doors.
