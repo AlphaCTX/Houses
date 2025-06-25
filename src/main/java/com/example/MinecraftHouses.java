@@ -4,7 +4,10 @@ import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.block.Sign;
+import org.bukkit.block.data.BlockData;
+import org.bukkit.block.data.Bisected;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -273,10 +276,20 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
 
     private int getHouseIdByDoor(Block b) {
         if (!housesConfig.isConfigurationSection("houses")) return -1;
-        String ser = serialize(b);
+        String serClicked = serialize(b);
+        // also check the other half of the door as players might click the top or bottom
+        String serOther = null;
+        BlockData data = b.getBlockData();
+        if (data instanceof Bisected) {
+            Bisected bisected = (Bisected) data;
+            Block other = bisected.getHalf() == Bisected.Half.TOP ? b.getRelative(BlockFace.DOWN)
+                    : b.getRelative(BlockFace.UP);
+            serOther = serialize(other);
+        }
+
         for (String idStr : housesConfig.getConfigurationSection("houses").getKeys(false)) {
             List<String> doors = housesConfig.getStringList("houses." + idStr + ".doors");
-            if (doors.contains(ser)) {
+            if (doors.contains(serClicked) || (serOther != null && doors.contains(serOther))) {
                 try {
                     return Integer.parseInt(idStr);
                 } catch (NumberFormatException ignore) {
