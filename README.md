@@ -28,5 +28,12 @@ Commands:
 - `/houses owned` – list houses you own
 - `/houses adddoor <id>` – link a door to a house (admin, right-click the door after running the command)
 - `/houses reload` – reload configuration (admin only)
+- `/houses info <id>` – view details about a house
+- `/houses trust <id> <player>` – allow a player to open your doors
+- `/houses untrust <id> <player>` – revoke door access
+- `/houses market` – open a GUI with all houses
+
+In the market GUI use the arrows to move between pages, and the house details
+screen includes a Back button to return.
 
 Only the owner of a house can interact with its doors.
