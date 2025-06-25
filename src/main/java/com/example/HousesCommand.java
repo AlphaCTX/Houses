@@ -212,6 +212,34 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
             } else {
                 p.sendMessage(ChatColor.GRAY + "Sneak and right click to confirm");
             }
+            return true;
+        }
+        if (args[0].equalsIgnoreCase("adddoor")) {
+            if (!p.hasPermission("houses.admin")) {
+                p.sendMessage(ChatColor.RED + "No permission");
+                return true;
+            }
+            if (args.length < 2) {
+                p.sendMessage(ChatColor.RED + "/houses adddoor <id>");
+                return true;
+            }
+            int id;
+            try {
+                id = Integer.parseInt(args[1]);
+            } catch (NumberFormatException ex) {
+                p.sendMessage(ChatColor.RED + "Invalid id");
+                return true;
+            }
+            plugin.awaitingDoorAdd.put(p.getUniqueId(), id);
+            plugin.awaitingDoorRemove.remove(p.getUniqueId());
+            p.sendMessage(ChatColor.GREEN + "Right click a door to add to house " + id);
+            return true;
+        }
+
+        if (args[0].equalsIgnoreCase("reload")) {
+            if (!p.hasPermission("houses.admin")) {
+                p.sendMessage(ChatColor.RED + "No permission");
+                return true;
         } else if (owner.equals(p.getUniqueId().toString())) {
             double sellPrice = price * 0.75;
             p.sendMessage(ChatColor.YELLOW + "Sell price: " + sellPrice);
@@ -238,6 +266,16 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         return b.getWorld().getName() + "," + b.getX() + "," + b.getY() + "," + b.getZ();
     }
 
+    private void sendHelp(Player p) {
+        p.sendMessage(ChatColor.YELLOW + "Available commands:");
+        p.sendMessage(ChatColor.AQUA + "/houses list" + ChatColor.GRAY + " - list all houses");
+        p.sendMessage(ChatColor.AQUA + "/houses owned" + ChatColor.GRAY + " - your houses");
+        if (p.hasPermission("houses.admin")) {
+            p.sendMessage(ChatColor.AQUA + "/houses adddoor <id>" + ChatColor.GRAY + " - add a door to a house");
+            p.sendMessage(ChatColor.AQUA + "/houses reload" + ChatColor.GRAY + " - reload configs");
+        }
+    }
+}
     private void addDoorToHouse(int id, Block door) {
         String path = "houses." + id + ".doors";
         List<String> doors = housesConfig.getStringList(path);
