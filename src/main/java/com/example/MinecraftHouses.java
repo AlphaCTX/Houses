@@ -12,6 +12,7 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -93,6 +94,14 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         return housesConfig;
     }
 
+    private void sendConfiguredMessage(Player player, String key, int id) {
+        String msg = getConfig().getString("messages." + key);
+        if (msg != null) {
+            msg = msg.replace("{id}", String.valueOf(id));
+            player.sendMessage(ChatColor.translateAlternateColorCodes('&', msg));
+        }
+    }
+
     @EventHandler
     public void onSignChange(SignChangeEvent e) {
         if (!e.getPlayer().hasPermission("houses.admin")) return;
@@ -136,7 +145,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         e.setLine(3, "id:" + id);
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGH)
     public void onInteract(PlayerInteractEvent e) {
         if (e.getAction() != Action.RIGHT_CLICK_BLOCK) return;
         Block block = e.getClickedBlock();
@@ -166,7 +175,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
             if (doorHouse != -1) {
                 String owner = housesConfig.getString("houses." + doorHouse + ".owner");
                 if (owner != null && !owner.equals(uid.toString())) {
-                    p.sendMessage(ChatColor.RED + "You don't own this house.");
+                    sendConfiguredMessage(p, "door-locked", doorHouse);
                     e.setCancelled(true);
                     return;
                 }
@@ -220,7 +229,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
                     saveHouses();
                     sign.setLine(2, p.getName());
                     sign.update();
-                    p.sendMessage(ChatColor.GREEN + (rent ? "Rented" : "Purchased") + " house " + id);
+                    sendConfiguredMessage(p, rent ? "rent-success" : "buy-success", id);
                 } else {
                     p.sendMessage(ChatColor.RED + "Not enough money");
                 }
@@ -236,7 +245,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
                 saveHouses();
                 sign.setLine(2, "");
                 sign.update();
-                p.sendMessage(ChatColor.GREEN + "Sold house " + id);
+                sendConfiguredMessage(p, rent ? "stop-rent-success" : "sell-success", id);
             } else {
                 p.sendMessage(ChatColor.GRAY + "Sneak and right click to confirm sale");
             }
