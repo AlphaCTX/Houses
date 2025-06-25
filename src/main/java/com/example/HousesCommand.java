@@ -102,7 +102,7 @@ public class HousesCommand implements CommandExecutor {
         }
 
         if (args[0].equalsIgnoreCase("market")) {
-            plugin.openMarket(p, MinecraftHouses.MarketFilter.ALL, 0);
+            plugin.openMarket(p, MinecraftHouses.MarketFilter.ALL);
             return true;
         }
         if (args[0].equalsIgnoreCase("adddoor")) {
