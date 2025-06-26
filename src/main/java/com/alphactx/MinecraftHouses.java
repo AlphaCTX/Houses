@@ -25,6 +25,7 @@ import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import net.milkbowl.vault.economy.Economy;
+import org.bstats.bukkit.Metrics;
 
 import java.io.File;
 import java.io.IOException;
@@ -56,9 +57,10 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         saveDefaultConfig();
         getServer().getPluginManager().registerEvents(this, this);
         Objects.requireNonNull(getCommand("houses")).setExecutor(new HousesCommand(this));
-		getLogger().info("  ╭───────────────────────╮");
-		getLogger().info("  │      AlphaCTX's       │");
-		getLogger().info("  │        Houses         │");
+        new Metrics(this, 26286);
+                getLogger().info("  ╭───────────────────────╮");
+                getLogger().info("  │      AlphaCTX's       │");
+                getLogger().info("  │        Houses         │");
 		getLogger().info("  │         Plugin        │");
 		getLogger().info("  ╰───────────────────────╯");
 		getLogger().info("        Houses Enabled!");
