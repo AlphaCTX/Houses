@@ -203,9 +203,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         }
 
         // sign interactions
-        if (!(type == Material.OAK_SIGN || type == Material.OAK_WALL_SIGN || type == Material.SPRUCE_SIGN || type == Material.SPRUCE_WALL_SIGN ||
-                type == Material.BIRCH_SIGN || type == Material.BIRCH_WALL_SIGN || type == Material.JUNGLE_SIGN || type == Material.JUNGLE_WALL_SIGN ||
-                type == Material.ACACIA_SIGN || type == Material.ACACIA_WALL_SIGN || type == Material.DARK_OAK_SIGN || type == Material.DARK_OAK_WALL_SIGN)) {
+        if (!isSign(type)) {
             return;
         }
 
@@ -276,6 +274,11 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
 
     private boolean isDoor(Material m) {
         return m.name().endsWith("_DOOR");
+    }
+
+    private boolean isSign(Material m) {
+        String name = m.name();
+        return name.endsWith("_SIGN") || name.endsWith("_WALL_SIGN");
     }
 
     private String serialize(Block b) {
