@@ -21,6 +21,7 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.block.SignChangeEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import net.milkbowl.vault.economy.Economy;
@@ -37,9 +38,12 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     public final Map<UUID, Integer> awaitingDoorAdd = new HashMap<>();
     public final Map<UUID, Integer> awaitingDoorRemove = new HashMap<>();
 
-    private enum MarketFilter { ALL, AVAILABLE, OWNED }
+    public enum MarketFilter { ALL, AVAILABLE, OWNED }
     private final Map<UUID, MarketFilter> marketFilters = new HashMap<>();
     private final Map<UUID, Integer> marketPages = new HashMap<>();
+
+    private final Map<UUID, Integer> confirmBuy = new HashMap<>();
+    private final Map<UUID, Integer> confirmSell = new HashMap<>();
 
     @Override
     public void onEnable() {
@@ -404,6 +408,24 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         sendConfiguredMessage(p, rent ? "stop-rent-success" : "sell-success", id);
     }
 
+    private void teleportToHouse(Player p, int id) {
+        String path = "houses." + id + ".";
+        String world = housesConfig.getString(path + "world");
+        if (world == null) {
+            p.sendMessage(ChatColor.RED + "Location not found");
+            return;
+        }
+        int x = housesConfig.getInt(path + "x");
+        int y = housesConfig.getInt(path + "y");
+        int z = housesConfig.getInt(path + "z");
+        p.sendMessage(ChatColor.YELLOW + "Teleporting in 5 seconds...");
+        Bukkit.getScheduler().runTaskLater(this, () -> {
+            if (p.isOnline()) {
+                p.teleport(new org.bukkit.Location(Bukkit.getWorld(world), x, y, z));
+            }
+        }, 20L * 5);
+    }
+
     public void openMarket(Player p, MarketFilter filter) {
         openMarket(p, filter, 0);
     }
@@ -497,6 +519,12 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         action.setItemMeta(aMeta);
         inv.setItem(15, action);
 
+        ItemStack tp = new ItemStack(Material.ENDER_PEARL);
+        ItemMeta tMeta = tp.getItemMeta();
+        tMeta.setDisplayName(ChatColor.AQUA + "Teleport");
+        tp.setItemMeta(tMeta);
+        inv.setItem(13, tp);
+
         inv.setItem(22, createButton(Material.ARROW, ChatColor.RED + "Back"));
 
         p.openInventory(inv);
@@ -537,20 +565,42 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
             String name = ChatColor.stripColor(item.getItemMeta().getDisplayName());
             if (name.equalsIgnoreCase("Buy") || name.equalsIgnoreCase("Rent")) {
                 if (owner == null) {
-                    buyHouse(p, id);
-                    p.closeInventory();
+                    if (!confirmBuy.containsKey(p.getUniqueId()) || confirmBuy.get(p.getUniqueId()) != id) {
+                        confirmBuy.put(p.getUniqueId(), id);
+                        p.sendMessage(ChatColor.YELLOW + "Click again to confirm purchase.");
+                    } else {
+                        confirmBuy.remove(p.getUniqueId());
+                        buyHouse(p, id);
+                        p.closeInventory();
+                    }
                 }
             } else if (name.equalsIgnoreCase("Sell") || name.equalsIgnoreCase("Stop Rent")) {
                 if (owner != null && owner.equals(p.getUniqueId().toString())) {
-                    sellHouse(p, id);
-                    p.closeInventory();
+                    if (!confirmSell.containsKey(p.getUniqueId()) || confirmSell.get(p.getUniqueId()) != id) {
+                        confirmSell.put(p.getUniqueId(), id);
+                        p.sendMessage(ChatColor.YELLOW + "Click again to confirm sale.");
+                    } else {
+                        confirmSell.remove(p.getUniqueId());
+                        sellHouse(p, id);
+                        p.closeInventory();
+                    }
                 }
+            } else if (name.equalsIgnoreCase("Teleport")) {
+                p.closeInventory();
+                teleportToHouse(p, id);
             } else if (name.equalsIgnoreCase("Back")) {
                 MarketFilter filter = marketFilters.getOrDefault(p.getUniqueId(), MarketFilter.ALL);
                 int page = marketPages.getOrDefault(p.getUniqueId(), 0);
                 openMarket(p, filter, page);
             }
         }
+    }
+
+    @EventHandler
+    public void onInventoryClose(InventoryCloseEvent e) {
+        UUID uid = e.getPlayer().getUniqueId();
+        confirmBuy.remove(uid);
+        confirmSell.remove(uid);
     }
 
 }
