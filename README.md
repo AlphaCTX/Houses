@@ -1,6 +1,6 @@
 # MinecraftHouses
 
-A simple Spigot plugin that lets players buy or rent houses via signs. House data is stored in `plugins/MinecraftHouses/houses.yml`.
+A simple Spigot plugin that lets players buy or rent houses via signs. House data is stored in a SQLite database `plugins/MinecraftHouses/houses.db`.
 
 ## Building
 
@@ -42,7 +42,7 @@ Only the owner of a house can interact with its doors.
 
 ## Configuration
 
-By default the plugin stores house data in a local YAML file. To use a MySQL
+By default the plugin stores house data in a local SQLite file. To use a MySQL
 database set `database.use-mysql` to `true` in `config.yml` and adjust the
 `host`, `port`, `user`, `pass` and `database` settings. When MySQL is enabled
 data is saved automatically every `database.save-interval` seconds. Set
