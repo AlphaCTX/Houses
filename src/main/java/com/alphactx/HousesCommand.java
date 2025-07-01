@@ -9,6 +9,9 @@ import org.bukkit.entity.Player;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.Material;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.Arrays;
@@ -106,6 +109,20 @@ public class HousesCommand implements TabExecutor {
 
         if (args[0].equalsIgnoreCase("market")) {
             plugin.openMarket(p, MinecraftHouses.MarketFilter.ALL);
+            return true;
+        }
+        if (args[0].equalsIgnoreCase("wand")) {
+            if (!p.hasPermission("houses.admin")) {
+                p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.RED + "No permission");
+                return true;
+            }
+            ItemStack wand = new ItemStack(Material.BLAZE_ROD);
+            ItemMeta meta = wand.getItemMeta();
+            meta.setDisplayName(ChatColor.GOLD + "HOUSE WAND");
+            wand.setItemMeta(meta);
+            p.getInventory().addItem(wand);
+            plugin.wandSelections.remove(p.getUniqueId());
+            p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.GREEN + "Wand given");
             return true;
         }
         if (args[0].equalsIgnoreCase("adddoor")) {
@@ -210,11 +227,11 @@ public class HousesCommand implements TabExecutor {
     @Override
     public java.util.List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
-            java.util.List<String> subs = java.util.Arrays.asList("list","owned","info","trust","untrust","market","adddoor","removedoor","reload","changeprice","backup");
+            java.util.List<String> subs = java.util.Arrays.asList("list","owned","info","trust","untrust","market","wand","adddoor","removedoor","reload","changeprice","backup");
             if (sender.hasPermission("houses.admin")) {
                 // all available already include admin ones
             } else {
-                subs = subs.stream().filter(s -> !java.util.Arrays.asList("adddoor","removedoor","reload","changeprice","backup").contains(s)).collect(java.util.stream.Collectors.toList());
+                subs = subs.stream().filter(s -> !java.util.Arrays.asList("wand","adddoor","removedoor","reload","changeprice","backup").contains(s)).collect(java.util.stream.Collectors.toList());
             }
             return subs.stream().filter(s -> s.startsWith(args[0].toLowerCase())).collect(java.util.stream.Collectors.toList());
         }
@@ -230,6 +247,7 @@ public class HousesCommand implements TabExecutor {
         p.sendMessage(ChatColor.AQUA + "/houses untrust <id> <player>" + ChatColor.GRAY + " - untrust player");
         p.sendMessage(ChatColor.AQUA + "/houses market" + ChatColor.GRAY + " - open market GUI");
         if (p.hasPermission("houses.admin")) {
+            p.sendMessage(ChatColor.AQUA + "/houses wand" + ChatColor.GRAY + " - get a house wand");
             p.sendMessage(ChatColor.AQUA + "/houses adddoor <id>" + ChatColor.GRAY + " - add a door to a house");
             p.sendMessage(ChatColor.AQUA + "/houses removedoor <id>" + ChatColor.GRAY + " - remove a door from a house");
             p.sendMessage(ChatColor.AQUA + "/houses reload" + ChatColor.GRAY + " - reload configs");
