@@ -961,10 +961,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
             return;
         }
 
-        Block adj = findAdjacentDoor(block);
-        if (adj != null && !isSign(type)) {
-            createEditableSign(p, block, adj);
-        }
+        // sign creation removed - wand now only toggles doors
     }
 
     private boolean isDoorInHouse(int id, Block door) {
@@ -984,28 +981,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         return door;
     }
 
-    private Block findAdjacentDoor(Block b) {
-        for (BlockFace face : new BlockFace[]{BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST}) {
-            Block adj = b.getRelative(face);
-            if (isDoor(adj.getType())) return adj;
-        }
-        return null;
-    }
-
-    private void createEditableSign(Player p, Block b, Block door) {
-        b.setType(Material.OAK_WALL_SIGN);
-        BlockFace face = b.getFace(door);
-        org.bukkit.block.data.type.WallSign data = (org.bukkit.block.data.type.WallSign) b.getBlockData();
-        if (face != null) data.setFacing(face);
-        b.setBlockData(data);
-        Sign sign = (Sign) b.getState();
-        sign.update();
-        try {
-            java.lang.reflect.Method m = Player.class.getMethod("openSign", Sign.class);
-            m.invoke(p, sign);
-        } catch (Exception ignored) {}
-        p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.GREEN + "Edit the sign to create a house");
-    }
+    // sign creation methods removed
 
     private void debug(String msg) {
         if (sqlDebug) {
