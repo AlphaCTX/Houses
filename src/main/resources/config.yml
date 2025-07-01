@@ -2,9 +2,12 @@ max-houses-per-player: 3
 database:
   use-mysql: false
   host: localhost
+  port: 3306
   user: root
   pass: password
   database: houses
+  save-interval: 10 # seconds
+  debug: false
 
 messages:
   buy-success: "&aPurchased house {id}"

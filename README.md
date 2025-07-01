@@ -38,3 +38,11 @@ In the market GUI use the arrows to move between pages, and the house details
 screen includes a Back button to return.
 
 Only the owner of a house can interact with its doors.
+
+## Configuration
+
+By default the plugin stores house data in a local YAML file. To use a MySQL
+database set `database.use-mysql` to `true` in `config.yml` and adjust the
+`host`, `port`, `user`, `pass` and `database` settings. When MySQL is enabled
+data is saved automatically every `database.save-interval` seconds. Set
+`database.debug` to `true` to print SQL operations to the console.
