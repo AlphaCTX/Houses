@@ -127,6 +127,28 @@ public class HousesCommand implements CommandExecutor {
             return true;
         }
 
+        if (args[0].equalsIgnoreCase("removedoor")) {
+            if (!p.hasPermission("houses.admin")) {
+                p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.RED + "No permission");
+                return true;
+            }
+            if (args.length < 2) {
+                p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.RED + "/houses removedoor <id>");
+                return true;
+            }
+            int id;
+            try {
+                id = Integer.parseInt(args[1]);
+            } catch (NumberFormatException ex) {
+                p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.RED + "Invalid id");
+                return true;
+            }
+            plugin.awaitingDoorRemove.put(p.getUniqueId(), id);
+            plugin.awaitingDoorAdd.remove(p.getUniqueId());
+            p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.GREEN + "Right click a door to remove from house " + id);
+            return true;
+        }
+
         if (args[0].equalsIgnoreCase("reload")) {
             if (!p.hasPermission("houses.admin")) {
                 p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.RED + "No permission");
@@ -151,6 +173,7 @@ public class HousesCommand implements CommandExecutor {
         p.sendMessage(ChatColor.AQUA + "/houses market" + ChatColor.GRAY + " - open market GUI");
         if (p.hasPermission("houses.admin")) {
             p.sendMessage(ChatColor.AQUA + "/houses adddoor <id>" + ChatColor.GRAY + " - add a door to a house");
+            p.sendMessage(ChatColor.AQUA + "/houses removedoor <id>" + ChatColor.GRAY + " - remove a door from a house");
             p.sendMessage(ChatColor.AQUA + "/houses reload" + ChatColor.GRAY + " - reload configs");
         }
     }

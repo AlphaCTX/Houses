@@ -30,11 +30,13 @@ import org.bstats.bukkit.Metrics;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
+import java.sql.*;
 
 public class MinecraftHouses extends JavaPlugin implements Listener {
     private Economy economy;
     private File housesFile;
     private FileConfiguration housesConfig;
+    private Connection sqlConnection;
 
     public final Map<UUID, Integer> awaitingDoorAdd = new HashMap<>();
     public final Map<UUID, Integer> awaitingDoorRemove = new HashMap<>();
@@ -46,6 +48,10 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     private final Map<UUID, Integer> confirmBuy = new HashMap<>();
     private final Map<UUID, Integer> confirmSell = new HashMap<>();
 
+    private boolean useMysql() {
+        return getConfig().getBoolean("database.use-mysql", false);
+    }
+
     @Override
     public void onEnable() {
         if (!setupEconomy()) {
@@ -54,6 +60,10 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
             return;
         }
         loadHouses();
+        if (useMysql()) {
+            connectDatabase();
+            loadHousesFromDatabase();
+        }
         saveDefaultConfig();
         getServer().getPluginManager().registerEvents(this, this);
         Objects.requireNonNull(getCommand("houses")).setExecutor(new HousesCommand(this));
@@ -69,7 +79,8 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     @Override
     public void onDisable() {
         saveHouses();
-		getLogger().info("Houses Disabled!");
+        closeDatabase();
+                getLogger().info("Houses Disabled!");
     }
 
     private boolean setupEconomy() {
@@ -102,6 +113,11 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     public void reloadPlugin() {
         reloadConfig();
         loadHouses();
+        if (useMysql()) {
+            closeDatabase();
+            connectDatabase();
+            loadHousesFromDatabase();
+        }
     }
     public void saveHouses() {
         try {
@@ -109,10 +125,94 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         } catch (IOException e) {
             e.printStackTrace();
         }
+        if (useMysql()) {
+            saveHousesToDatabase();
+        }
     }
 
     public FileConfiguration getHousesConfig() {
         return housesConfig;
+    }
+
+    private void connectDatabase() {
+        String host = getConfig().getString("database.host");
+        String user = getConfig().getString("database.user");
+        String pass = getConfig().getString("database.pass");
+        String db = getConfig().getString("database.database");
+        String url = "jdbc:mysql://" + host + "/" + db + "?useSSL=false";
+        try {
+            sqlConnection = DriverManager.getConnection(url, user, pass);
+            try (PreparedStatement ps = sqlConnection.prepareStatement(
+                    "CREATE TABLE IF NOT EXISTS houses (id INT PRIMARY KEY, rent TINYINT(1), price DOUBLE, owner VARCHAR(36), world VARCHAR(64), x INT, y INT, z INT, doors TEXT, trusted TEXT)")) {
+                ps.executeUpdate();
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void closeDatabase() {
+        if (sqlConnection != null) {
+            try { sqlConnection.close(); } catch (SQLException ignored) {}
+        }
+    }
+
+    private void loadHousesFromDatabase() {
+        if (sqlConnection == null) return;
+        try (Statement st = sqlConnection.createStatement()) {
+            ResultSet rs = st.executeQuery("SELECT * FROM houses");
+            int lastId = 0;
+            housesConfig.set("houses", null);
+            while (rs.next()) {
+                int id = rs.getInt("id");
+                lastId = Math.max(lastId, id);
+                String path = "houses." + id;
+                housesConfig.set(path + ".rent", rs.getBoolean("rent"));
+                housesConfig.set(path + ".price", rs.getDouble("price"));
+                housesConfig.set(path + ".owner", rs.getString("owner"));
+                housesConfig.set(path + ".world", rs.getString("world"));
+                housesConfig.set(path + ".x", rs.getInt("x"));
+                housesConfig.set(path + ".y", rs.getInt("y"));
+                housesConfig.set(path + ".z", rs.getInt("z"));
+                String doors = rs.getString("doors");
+                housesConfig.set(path + ".doors", doors == null || doors.isEmpty() ? new ArrayList<>() : Arrays.asList(doors.split(";")));
+                String trusted = rs.getString("trusted");
+                housesConfig.set(path + ".trusted", trusted == null || trusted.isEmpty() ? new ArrayList<>() : Arrays.asList(trusted.split(";")));
+            }
+            housesConfig.set("lastId", lastId);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void saveHousesToDatabase() {
+        if (sqlConnection == null) return;
+        try (Statement st = sqlConnection.createStatement()) {
+            st.executeUpdate("DELETE FROM houses");
+            if (housesConfig.isConfigurationSection("houses")) {
+                for (String idStr : housesConfig.getConfigurationSection("houses").getKeys(false)) {
+                    String path = "houses." + idStr;
+                    PreparedStatement ps = sqlConnection.prepareStatement(
+                            "INSERT INTO houses(id,rent,price,owner,world,x,y,z,doors,trusted) VALUES (?,?,?,?,?,?,?,?,?,?)");
+                    ps.setInt(1, Integer.parseInt(idStr));
+                    ps.setBoolean(2, housesConfig.getBoolean(path + ".rent"));
+                    ps.setDouble(3, housesConfig.getDouble(path + ".price"));
+                    ps.setString(4, housesConfig.getString(path + ".owner"));
+                    ps.setString(5, housesConfig.getString(path + ".world"));
+                    ps.setInt(6, housesConfig.getInt(path + ".x"));
+                    ps.setInt(7, housesConfig.getInt(path + ".y"));
+                    ps.setInt(8, housesConfig.getInt(path + ".z"));
+                    java.util.List<String> doors = housesConfig.getStringList(path + ".doors");
+                    ps.setString(9, String.join(";", doors));
+                    java.util.List<String> trusted = housesConfig.getStringList(path + ".trusted");
+                    ps.setString(10, String.join(";", trusted));
+                    ps.executeUpdate();
+                    ps.close();
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
     private void sendConfiguredMessage(Player player, String key, int id) {
