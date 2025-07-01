@@ -29,13 +29,11 @@ import net.milkbowl.vault.economy.Economy;
 import org.bstats.bukkit.Metrics;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.*;
 import java.sql.*;
 
 public class MinecraftHouses extends JavaPlugin implements Listener {
     private Economy economy;
-    private File housesFile;
     private FileConfiguration housesConfig;
     private Connection sqlConnection;
     private boolean sqlDebug;
@@ -70,12 +68,9 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         loadHouses();
         saveDefaultConfig();
         sqlDebug = getConfig().getBoolean("database.debug", false);
-        if (useMysql()) {
-            connectDatabase();
-            mergeFileToDatabase();
-            loadHousesFromDatabase();
-            startAutoSave();
-        }
+        connectDatabase();
+        loadHousesFromDatabase();
+        startAutoSave();
         getServer().getPluginManager().registerEvents(this, this);
         Objects.requireNonNull(getCommand("houses")).setExecutor(new HousesCommand(this));
         startRentTask();
@@ -112,40 +107,21 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     }
 
     private void loadHouses() {
-        housesFile = new File(getDataFolder(), "houses.yml");
-        if (!housesFile.exists()) {
-            try {
-                housesFile.getParentFile().mkdirs();
-                housesFile.createNewFile();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-        housesConfig = YamlConfiguration.loadConfiguration(housesFile);
+        housesConfig = new YamlConfiguration();
     }
 
     public void reloadPlugin() {
         reloadConfig();
         loadHouses();
         sqlDebug = getConfig().getBoolean("database.debug", false);
-        if (useMysql()) {
-            stopAutoSave();
-            closeDatabase();
-            connectDatabase();
-            mergeFileToDatabase();
-            loadHousesFromDatabase();
-            startAutoSave();
-        }
+        stopAutoSave();
+        closeDatabase();
+        connectDatabase();
+        loadHousesFromDatabase();
+        startAutoSave();
     }
     public void saveHouses() {
-        try {
-            housesConfig.save(housesFile);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        if (useMysql()) {
-            saveHousesToDatabase();
-        }
+        saveHousesToDatabase();
     }
 
     public FileConfiguration getHousesConfig() {
@@ -153,6 +129,19 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     }
 
     private void connectDatabase() {
+        closeDatabase();
+        try {
+            if (useMysql()) {
+                sqlConnection = connectMysql();
+            } else {
+                sqlConnection = connectSqlite();
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private Connection connectMysql() throws SQLException {
         String host = getConfig().getString("database.host");
         int port = getConfig().getInt("database.port", 3306);
         String user = getConfig().getString("database.user");
@@ -160,16 +149,27 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         String db = getConfig().getString("database.database");
         String url = "jdbc:mysql://" + host + ":" + port + "/" + db + "?useSSL=false";
         debug("Connecting to " + url);
-        try {
-            sqlConnection = DriverManager.getConnection(url, user, pass);
-            try (PreparedStatement ps = sqlConnection.prepareStatement(
-                    "CREATE TABLE IF NOT EXISTS houses (id INT PRIMARY KEY, rent TINYINT(1), price DOUBLE, owner VARCHAR(36), next_rent BIGINT, world VARCHAR(64), x INT, y INT, z INT, doors TEXT, trusted TEXT)")) {
-                ps.executeUpdate();
-            }
-            debug("Connected to database");
-        } catch (SQLException e) {
-            e.printStackTrace();
+        Connection conn = DriverManager.getConnection(url, user, pass);
+        try (PreparedStatement ps = conn.prepareStatement(
+                "CREATE TABLE IF NOT EXISTS houses (id INTEGER PRIMARY KEY, rent TINYINT(1), price DOUBLE, owner VARCHAR(36), next_rent BIGINT, world VARCHAR(64), x INT, y INT, z INT, doors TEXT, trusted TEXT)")) {
+            ps.executeUpdate();
         }
+        debug("Connected to MySQL");
+        return conn;
+    }
+
+    private Connection connectSqlite() throws SQLException {
+        File file = new File(getDataFolder(), getConfig().getString("database.sqlite-file", "houses.db"));
+        file.getParentFile().mkdirs();
+        String url = "jdbc:sqlite:" + file.getAbsolutePath();
+        debug("Connecting to " + url);
+        Connection conn = DriverManager.getConnection(url);
+        try (PreparedStatement ps = conn.prepareStatement(
+                "CREATE TABLE IF NOT EXISTS houses (id INTEGER PRIMARY KEY, rent TINYINT(1), price DOUBLE, owner VARCHAR(36), next_rent BIGINT, world VARCHAR(64), x INT, y INT, z INT, doors TEXT, trusted TEXT)")) {
+            ps.executeUpdate();
+        }
+        debug("Connected to SQLite");
+        return conn;
     }
 
     private void closeDatabase() {
@@ -240,9 +240,13 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     }
 
     private void loadHousesFromDatabase() {
-        if (sqlConnection == null) return;
+        loadHousesFromConnection(sqlConnection);
+    }
+
+    private void loadHousesFromConnection(Connection conn) {
+        if (conn == null) return;
         debug("Loading houses from database");
-        try (Statement st = sqlConnection.createStatement()) {
+        try (Statement st = conn.createStatement()) {
             ResultSet rs = st.executeQuery("SELECT * FROM houses");
             int lastId = 0;
             housesConfig.set("houses", null);
@@ -270,14 +274,18 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     }
 
     private void saveHousesToDatabase() {
-        if (sqlConnection == null) return;
+        saveHousesToConnection(sqlConnection);
+    }
+
+    private void saveHousesToConnection(Connection conn) {
+        if (conn == null) return;
         debug("Saving houses to database");
-        try (Statement st = sqlConnection.createStatement()) {
+        try (Statement st = conn.createStatement()) {
             st.executeUpdate("DELETE FROM houses");
             if (housesConfig.isConfigurationSection("houses")) {
                 for (String idStr : housesConfig.getConfigurationSection("houses").getKeys(false)) {
                     String path = "houses." + idStr;
-                    PreparedStatement ps = sqlConnection.prepareStatement(
+                    PreparedStatement ps = conn.prepareStatement(
                             "INSERT INTO houses(id,rent,price,owner,next_rent,world,x,y,z,doors,trusted) VALUES (?,?,?,?,?,?,?,?,?,?,?)");
                     ps.setInt(1, Integer.parseInt(idStr));
                     ps.setBoolean(2, housesConfig.getBoolean(path + ".rent"));
@@ -301,51 +309,21 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         }
     }
 
-    private void mergeFileToDatabase() {
-        if (sqlConnection == null) return;
-        if (!housesConfig.isConfigurationSection("houses")) return;
-        debug("Merging file houses into database");
-        try {
-            for (String idStr : housesConfig.getConfigurationSection("houses").getKeys(false)) {
-                String path = "houses." + idStr;
-                PreparedStatement ps = sqlConnection.prepareStatement(
-                        "INSERT INTO houses(id,rent,price,owner,next_rent,world,x,y,z,doors,trusted) " +
-                                "VALUES (?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE id=id");
-                ps.setInt(1, Integer.parseInt(idStr));
-                ps.setBoolean(2, housesConfig.getBoolean(path + ".rent"));
-                ps.setDouble(3, housesConfig.getDouble(path + ".price"));
-                ps.setString(4, housesConfig.getString(path + ".owner"));
-                ps.setLong(5, housesConfig.getLong(path + ".nextRent", 0L));
-                ps.setString(6, housesConfig.getString(path + ".world"));
-                ps.setInt(7, housesConfig.getInt(path + ".x"));
-                ps.setInt(8, housesConfig.getInt(path + ".y"));
-                ps.setInt(9, housesConfig.getInt(path + ".z"));
-                java.util.List<String> doors = housesConfig.getStringList(path + ".doors");
-                ps.setString(10, String.join(";", doors));
-                java.util.List<String> trusted = housesConfig.getStringList(path + ".trusted");
-                ps.setString(11, String.join(";", trusted));
-                ps.executeUpdate();
-                ps.close();
-            }
+
+    public void backupToMysql() {
+        try (Connection source = connectSqlite(); Connection target = connectMysql()) {
+            loadHousesFromConnection(source);
+            saveHousesToConnection(target);
         } catch (SQLException e) {
             e.printStackTrace();
         }
     }
 
-    public void backupToDatabase() {
-        mergeFileToDatabase();
-        loadHousesFromDatabase();
-    }
-
-    public void backupToFile() {
-        loadHousesFromDatabase();
-        saveHousesFile();
-    }
-
-    private void saveHousesFile() {
-        try {
-            housesConfig.save(housesFile);
-        } catch (IOException e) {
+    public void backupToSqlite() {
+        try (Connection source = connectMysql(); Connection target = connectSqlite()) {
+            loadHousesFromConnection(source);
+            saveHousesToConnection(target);
+        } catch (SQLException e) {
             e.printStackTrace();
         }
     }

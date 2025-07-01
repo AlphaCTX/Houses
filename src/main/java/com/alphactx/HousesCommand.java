@@ -206,16 +206,16 @@ public class HousesCommand implements TabExecutor {
                 p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.RED + "No permission");
                 return true;
             }
-            if (args.length < 2 || !(args[1].equalsIgnoreCase("sql") || args[1].equalsIgnoreCase("file"))) {
-                p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.RED + "/houses backup <sql/file>");
+            if (args.length < 2 || !(args[1].equalsIgnoreCase("mysql") || args[1].equalsIgnoreCase("sqlite"))) {
+                p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.RED + "/houses backup <mysql/sqlite>");
                 return true;
             }
-            if (args[1].equalsIgnoreCase("sql")) {
-                plugin.backupToDatabase();
-                p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.GREEN + "Data copied to database");
+            if (args[1].equalsIgnoreCase("mysql")) {
+                plugin.backupToMysql();
+                p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.GREEN + "Data copied to MySQL");
             } else {
-                plugin.backupToFile();
-                p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.GREEN + "Data copied to file");
+                plugin.backupToSqlite();
+                p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.GREEN + "Data copied to SQLite");
             }
             return true;
         }
@@ -252,7 +252,7 @@ public class HousesCommand implements TabExecutor {
             p.sendMessage(ChatColor.AQUA + "/houses removedoor <id>" + ChatColor.GRAY + " - remove a door from a house");
             p.sendMessage(ChatColor.AQUA + "/houses reload" + ChatColor.GRAY + " - reload configs");
             p.sendMessage(ChatColor.AQUA + "/houses changeprice <id> <value>" + ChatColor.GRAY + " - change house price");
-            p.sendMessage(ChatColor.AQUA + "/houses backup <sql/file>" + ChatColor.GRAY + " - copy data between storage");
+            p.sendMessage(ChatColor.AQUA + "/houses backup <mysql/sqlite>" + ChatColor.GRAY + " - copy data between storage");
         }
     }
 

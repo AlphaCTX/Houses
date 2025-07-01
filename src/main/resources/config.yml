@@ -6,6 +6,7 @@ database:
   user: root
   pass: password
   database: houses
+  sqlite-file: houses.db
   save-interval: 10 # seconds
   debug: false
 
