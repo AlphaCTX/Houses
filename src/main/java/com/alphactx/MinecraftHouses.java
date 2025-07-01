@@ -11,6 +11,7 @@ import org.bukkit.block.data.Bisected;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -50,6 +51,10 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     private final Map<UUID, Integer> confirmBuy = new HashMap<>();
     private final Map<UUID, Integer> confirmSell = new HashMap<>();
 
+    private final Map<UUID, Integer> pendingTeleports = new HashMap<>();
+    private final Map<UUID, org.bukkit.Location> teleportLocations = new HashMap<>();
+    private int rentTask = -1;
+
     private boolean useMysql() {
         return getConfig().getBoolean("database.use-mysql", false);
     }
@@ -71,6 +76,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         }
         getServer().getPluginManager().registerEvents(this, this);
         Objects.requireNonNull(getCommand("houses")).setExecutor(new HousesCommand(this));
+        startRentTask();
         new Metrics(this, 26286);
                 getLogger().info("  ╭───────────────────────╮");
                 getLogger().info("  │      AlphaCTX's       │");
@@ -84,6 +90,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     public void onDisable() {
         saveHouses();
         stopAutoSave();
+        stopRentTask();
         closeDatabase();
                 getLogger().info("Houses Disabled!");
     }
@@ -153,7 +160,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         try {
             sqlConnection = DriverManager.getConnection(url, user, pass);
             try (PreparedStatement ps = sqlConnection.prepareStatement(
-                    "CREATE TABLE IF NOT EXISTS houses (id INT PRIMARY KEY, rent TINYINT(1), price DOUBLE, owner VARCHAR(36), world VARCHAR(64), x INT, y INT, z INT, doors TEXT, trusted TEXT)")) {
+                    "CREATE TABLE IF NOT EXISTS houses (id INT PRIMARY KEY, rent TINYINT(1), price DOUBLE, owner VARCHAR(36), next_rent BIGINT, world VARCHAR(64), x INT, y INT, z INT, doors TEXT, trusted TEXT)")) {
                 ps.executeUpdate();
             }
             debug("Connected to database");
@@ -173,7 +180,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     private void startAutoSave() {
         int interval = getConfig().getInt("database.save-interval", 10);
         if (interval <= 0) return;
-        autoSaveTask = getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
+        autoSaveTask = getServer().getScheduler().runTaskTimer(this, () -> {
             saveHousesToDatabase();
             debug("Auto-saved houses to database");
         }, interval * 20L, interval * 20L).getTaskId();
@@ -183,6 +190,49 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         if (autoSaveTask != -1) {
             getServer().getScheduler().cancelTask(autoSaveTask);
             autoSaveTask = -1;
+        }
+    }
+
+    private void startRentTask() {
+        int interval = getConfig().getInt("rent.check-interval", 600);
+        if (interval <= 0) return;
+        rentTask = getServer().getScheduler().runTaskTimer(this, this::checkRentPayments, interval * 20L, interval * 20L).getTaskId();
+    }
+
+    private void stopRentTask() {
+        if (rentTask != -1) {
+            getServer().getScheduler().cancelTask(rentTask);
+            rentTask = -1;
+        }
+    }
+
+    private void checkRentPayments() {
+        long period = getConfig().getLong("rent.period", 86400) * 1000L;
+        long now = System.currentTimeMillis();
+        if (housesConfig.isConfigurationSection("houses")) {
+            for (String idStr : housesConfig.getConfigurationSection("houses").getKeys(false)) {
+                String path = "houses." + idStr;
+                if (!housesConfig.getBoolean(path + ".rent")) continue;
+                String owner = housesConfig.getString(path + ".owner");
+                if (owner == null) continue;
+                long next = housesConfig.getLong(path + ".nextRent", 0L);
+                if (now >= next) {
+                    OfflinePlayer op = Bukkit.getOfflinePlayer(UUID.fromString(owner));
+                    double price = housesConfig.getDouble(path + ".price");
+                    if (economy.has(op, price)) {
+                        economy.withdrawPlayer(op, price);
+                        housesConfig.set(path + ".nextRent", now + period);
+                        if (op.isOnline()) op.getPlayer().sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.GREEN + "Rent for house " + idStr + " paid");
+                    } else {
+                        housesConfig.set(path + ".owner", null);
+                        housesConfig.set(path + ".trusted", new ArrayList<>());
+                        housesConfig.set(path + ".nextRent", null);
+                        updateHouseSign(Integer.parseInt(idStr), null);
+                        if (op.isOnline()) op.getPlayer().sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.RED + "Rent unpaid, house " + idStr + " lost");
+                    }
+                }
+            }
+            saveHouses();
         }
     }
 
@@ -200,6 +250,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
                 housesConfig.set(path + ".rent", rs.getBoolean("rent"));
                 housesConfig.set(path + ".price", rs.getDouble("price"));
                 housesConfig.set(path + ".owner", rs.getString("owner"));
+                housesConfig.set(path + ".nextRent", rs.getLong("next_rent"));
                 housesConfig.set(path + ".world", rs.getString("world"));
                 housesConfig.set(path + ".x", rs.getInt("x"));
                 housesConfig.set(path + ".y", rs.getInt("y"));
@@ -224,19 +275,20 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
                 for (String idStr : housesConfig.getConfigurationSection("houses").getKeys(false)) {
                     String path = "houses." + idStr;
                     PreparedStatement ps = sqlConnection.prepareStatement(
-                            "INSERT INTO houses(id,rent,price,owner,world,x,y,z,doors,trusted) VALUES (?,?,?,?,?,?,?,?,?,?)");
+                            "INSERT INTO houses(id,rent,price,owner,next_rent,world,x,y,z,doors,trusted) VALUES (?,?,?,?,?,?,?,?,?,?)");
                     ps.setInt(1, Integer.parseInt(idStr));
                     ps.setBoolean(2, housesConfig.getBoolean(path + ".rent"));
                     ps.setDouble(3, housesConfig.getDouble(path + ".price"));
                     ps.setString(4, housesConfig.getString(path + ".owner"));
-                    ps.setString(5, housesConfig.getString(path + ".world"));
-                    ps.setInt(6, housesConfig.getInt(path + ".x"));
-                    ps.setInt(7, housesConfig.getInt(path + ".y"));
-                    ps.setInt(8, housesConfig.getInt(path + ".z"));
+                    ps.setLong(5, housesConfig.getLong(path + ".nextRent", 0L));
+                    ps.setString(6, housesConfig.getString(path + ".world"));
+                    ps.setInt(7, housesConfig.getInt(path + ".x"));
+                    ps.setInt(8, housesConfig.getInt(path + ".y"));
+                    ps.setInt(9, housesConfig.getInt(path + ".z"));
                     java.util.List<String> doors = housesConfig.getStringList(path + ".doors");
-                    ps.setString(9, String.join(";", doors));
+                    ps.setString(10, String.join(";", doors));
                     java.util.List<String> trusted = housesConfig.getStringList(path + ".trusted");
-                    ps.setString(10, String.join(";", trusted));
+                    ps.setString(11, String.join(";", trusted));
                     ps.executeUpdate();
                     ps.close();
                 }
@@ -266,7 +318,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     }
 
     private void createHouseSign(SignChangeEvent e, boolean rent) {
-        String priceLine = e.getLine(1);
+        String priceLine = e.getLine(1).replace("$", "");
         double price = 0;
         try {
             price = Double.parseDouble(priceLine);
@@ -292,9 +344,28 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         saveHouses();
 
         e.setLine(0, ChatColor.GREEN + (rent ? "[Rent]" : "[House]"));
-        e.setLine(1, priceLine);
+        e.setLine(1, "$" + price);
         e.setLine(2, "");
-        e.setLine(3, "id:" + id);
+        e.setLine(3, "ID: " + id);
+    }
+
+    @EventHandler
+    public void onBlockBreak(org.bukkit.event.block.BlockBreakEvent e) {
+        Block b = e.getBlock();
+        if (!isSign(b.getType())) return;
+        if (!(b.getState() instanceof Sign)) return;
+        Sign sign = (Sign) b.getState();
+        String line0 = ChatColor.stripColor(sign.getLine(0));
+        if (!line0.equalsIgnoreCase("[House]") && !line0.equalsIgnoreCase("[Rent]")) return;
+        String idPart = ChatColor.stripColor(sign.getLine(3));
+        if (!idPart.toLowerCase().startsWith("id:")) return;
+        int id;
+        try { id = Integer.parseInt(idPart.substring(3).trim()); } catch (Exception ex) { return; }
+        if (e.getPlayer().hasPermission("houses.admin")) {
+            housesConfig.set("houses." + id, null);
+            saveHouses();
+            e.getPlayer().sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.GREEN + "House " + id + " removed");
+        }
     }
 
     @EventHandler(priority = EventPriority.HIGH)
@@ -344,10 +415,10 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         String line0 = ChatColor.stripColor(sign.getLine(0));
         if (!line0.equalsIgnoreCase("[House]") && !line0.equalsIgnoreCase("[Rent]")) return;
         String idPart = ChatColor.stripColor(sign.getLine(3));
-        if (!idPart.startsWith("id:")) return;
+        if (!idPart.toLowerCase().startsWith("id:")) return;
         int id;
         try {
-            id = Integer.parseInt(idPart.substring(3));
+            id = Integer.parseInt(idPart.substring(3).trim());
         } catch (Exception ex) {
             return;
         }
@@ -378,8 +449,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
                     economy.withdrawPlayer(p, price);
                     housesConfig.set(path + ".owner", p.getUniqueId().toString());
                     saveHouses();
-                    sign.setLine(2, p.getName());
-                    sign.update();
+                    updateHouseSign(id, p.getName());
                     sendConfiguredMessage(p, rent ? "rent-success" : "buy-success", id);
                 } else {
                     p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.RED + "Not enough money");
@@ -394,8 +464,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
                 economy.depositPlayer(p, sellPrice);
                 housesConfig.set(path + ".owner", null);
                 saveHouses();
-                sign.setLine(2, "");
-                sign.update();
+                updateHouseSign(id, null);
                 sendConfiguredMessage(p, rent ? "stop-rent-success" : "sell-success", id);
             } else {
                 p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.GRAY + "Sneak and right click to confirm sale");
@@ -490,7 +559,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         return -1;
     }
 
-    private void updateHouseSign(int id, String ownerName) {
+    public void updateHouseSign(int id, String ownerName) {
         String path = "houses." + id + ".";
         String world = housesConfig.getString(path + "world");
         if (world == null) return;
@@ -500,7 +569,10 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
                 housesConfig.getInt(path + "z"));
         if (b.getState() instanceof Sign) {
             Sign sign = (Sign) b.getState();
-            sign.setLine(2, ownerName == null ? "" : ownerName);
+            double price = housesConfig.getDouble(path + "price");
+            sign.setLine(1, "$" + price);
+            sign.setLine(2, ownerName == null ? "" : "Owner:" + ownerName);
+            sign.setLine(3, "ID: " + id);
             sign.update();
         }
     }
@@ -530,6 +602,10 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
             economy.withdrawPlayer(p, price);
             housesConfig.set(path + ".owner", p.getUniqueId().toString());
             housesConfig.set(path + ".trusted", new ArrayList<>());
+            if (rent) {
+                long period = getConfig().getLong("rent.period", 86400) * 1000L;
+                housesConfig.set(path + ".nextRent", System.currentTimeMillis() + period);
+            }
             saveHouses();
             updateHouseSign(id, p.getName());
             sendConfiguredMessage(p, rent ? "rent-success" : "buy-success", id);
@@ -546,6 +622,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         economy.depositPlayer(p, sellPrice);
         housesConfig.set(path + ".owner", null);
         housesConfig.set(path + ".trusted", new ArrayList<>());
+        housesConfig.set(path + ".nextRent", null);
         saveHouses();
         updateHouseSign(id, null);
         sendConfiguredMessage(p, rent ? "stop-rent-success" : "sell-success", id);
@@ -561,12 +638,18 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         int x = housesConfig.getInt(path + "x");
         int y = housesConfig.getInt(path + "y");
         int z = housesConfig.getInt(path + "z");
-        p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.GREEN + "Teleporting in 5 seconds...");
-        Bukkit.getScheduler().runTaskLater(this, () -> {
+        int wait = getConfig().getInt("teleport-wait", 5);
+        p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.GREEN + "Teleporting in " + wait + " seconds...");
+        org.bukkit.Location startLoc = p.getLocation();
+        int task = Bukkit.getScheduler().runTaskLater(this, () -> {
             if (p.isOnline()) {
+                pendingTeleports.remove(p.getUniqueId());
+                teleportLocations.remove(p.getUniqueId());
                 p.teleport(new org.bukkit.Location(Bukkit.getWorld(world), x, y, z));
             }
-        }, 20L * 5);
+        }, 20L * wait).getTaskId();
+        pendingTeleports.put(p.getUniqueId(), task);
+        teleportLocations.put(p.getUniqueId(), startLoc);
     }
 
     public void openMarket(Player p, MarketFilter filter) {
@@ -744,6 +827,36 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         UUID uid = e.getPlayer().getUniqueId();
         confirmBuy.remove(uid);
         confirmSell.remove(uid);
+    }
+
+    @EventHandler
+    public void onPlayerMove(org.bukkit.event.player.PlayerMoveEvent e) {
+        UUID uid = e.getPlayer().getUniqueId();
+        if (pendingTeleports.containsKey(uid)) {
+            org.bukkit.Location start = teleportLocations.get(uid);
+            if (start != null && e.getFrom().distanceSquared(start) > 0.1) {
+                cancelTeleport(e.getPlayer());
+            }
+        }
+    }
+
+    @EventHandler
+    public void onDamage(org.bukkit.event.entity.EntityDamageEvent e) {
+        if (e.getEntity() instanceof Player) {
+            Player p = (Player) e.getEntity();
+            if (pendingTeleports.containsKey(p.getUniqueId())) {
+                cancelTeleport(p);
+            }
+        }
+    }
+
+    private void cancelTeleport(Player p) {
+        Integer task = pendingTeleports.remove(p.getUniqueId());
+        teleportLocations.remove(p.getUniqueId());
+        if (task != null) {
+            Bukkit.getScheduler().cancelTask(task);
+            p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.RED + "Teleport cancelled");
+        }
     }
 
     private void debug(String msg) {

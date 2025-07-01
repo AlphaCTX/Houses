@@ -4,13 +4,16 @@ import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.command.TabExecutor;
 import org.bukkit.entity.Player;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.FileConfiguration;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.Arrays;
 
-public class HousesCommand implements CommandExecutor {
+public class HousesCommand implements TabExecutor {
     private final MinecraftHouses plugin;
 
     public HousesCommand(MinecraftHouses plugin) {
@@ -159,8 +162,44 @@ public class HousesCommand implements CommandExecutor {
             return true;
         }
 
+        if (args[0].equalsIgnoreCase("changeprice")) {
+            if (!p.hasPermission("houses.admin")) {
+                p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.RED + "No permission");
+                return true;
+            }
+            if (args.length < 3) {
+                p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.RED + "/houses changeprice <id> <value>");
+                return true;
+            }
+            int id;
+            double value;
+            try { id = Integer.parseInt(args[1]); } catch (NumberFormatException ex) { p.sendMessage(ChatColor.RED + "Invalid id"); return true; }
+            try { value = Double.parseDouble(args[2]); } catch (NumberFormatException ex) { p.sendMessage(ChatColor.RED + "Invalid value"); return true; }
+            String path = "houses." + id;
+            if (!cfg.isConfigurationSection(path)) { p.sendMessage(ChatColor.RED + "Unknown house"); return true; }
+            cfg.set(path + ".price", value);
+            plugin.saveHouses();
+            plugin.updateHouseSign(id, cfg.getString(path + ".owner") == null ? null : Bukkit.getOfflinePlayer(UUID.fromString(cfg.getString(path + ".owner"))).getName());
+            p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.GREEN + "Price updated");
+            return true;
+        }
+
         p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.RED + "Unknown subcommand");
         return true;
+    }
+
+    @Override
+    public java.util.List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        if (args.length == 1) {
+            java.util.List<String> subs = java.util.Arrays.asList("list","owned","info","trust","untrust","market","adddoor","removedoor","reload","changeprice");
+            if (sender.hasPermission("houses.admin")) {
+                // all available already include admin ones
+            } else {
+                subs = subs.stream().filter(s -> !java.util.Arrays.asList("adddoor","removedoor","reload","changeprice").contains(s)).collect(java.util.stream.Collectors.toList());
+            }
+            return subs.stream().filter(s -> s.startsWith(args[0].toLowerCase())).collect(java.util.stream.Collectors.toList());
+        }
+        return java.util.Collections.emptyList();
     }
 
     private void sendHelp(Player p) {
@@ -175,6 +214,7 @@ public class HousesCommand implements CommandExecutor {
             p.sendMessage(ChatColor.AQUA + "/houses adddoor <id>" + ChatColor.GRAY + " - add a door to a house");
             p.sendMessage(ChatColor.AQUA + "/houses removedoor <id>" + ChatColor.GRAY + " - remove a door from a house");
             p.sendMessage(ChatColor.AQUA + "/houses reload" + ChatColor.GRAY + " - reload configs");
+            p.sendMessage(ChatColor.AQUA + "/houses changeprice <id> <value>" + ChatColor.GRAY + " - change house price");
         }
     }
 

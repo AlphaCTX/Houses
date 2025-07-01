@@ -9,6 +9,11 @@ database:
   save-interval: 10 # seconds
   debug: false
 
+teleport-wait: 5
+rent:
+  period: 86400 # seconds
+  check-interval: 600 # seconds
+
 messages:
   buy-success: "&aPurchased house {id}"
   sell-success: "&aSold house {id}"
