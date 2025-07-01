@@ -4,10 +4,9 @@
                              http://maven.apache.org/xsd/maven-4.0.0.xsd">
     
     <modelVersion>4.0.0</modelVersion>
-
-    <groupId>com.example</groupId>
+    <groupId>com.alphactx</groupId>
     <artifactId>MinecraftHouses</artifactId>
-    <version>1.0.0</version>
+    <version>1.1.0</version>
     <packaging>jar</packaging>
 
     <repositories>
@@ -22,15 +21,15 @@
     </repositories>
 
     <dependencies>
-        <!-- Spigot API -->
+        <!-- Spigot API 1.16.5 (provided zodat het niet in je JAR komt) -->
         <dependency>
             <groupId>org.spigotmc</groupId>
             <artifactId>spigot-api</artifactId>
-            <version>1.21-R0.1-SNAPSHOT</version>
+            <version>1.16.5-R0.1-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>
 
-        <!-- VaultAPI via JitPack -->
+        <!-- VaultAPI (provided, wordt door de server geleverd) -->
         <dependency>
             <groupId>com.github.MilkBowl</groupId>
             <artifactId>VaultAPI</artifactId>
@@ -38,14 +37,14 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- bStats Metrics -->
+        <!-- bStats Metrics (wordt geshaded) -->
         <dependency>
             <groupId>org.bstats</groupId>
             <artifactId>bstats-bukkit</artifactId>
             <version>3.0.2</version>
         </dependency>
 
-        <!-- MySQL Connector -->
+        <!-- MySQL Connector (in je JAR of server-classpath) -->
         <dependency>
             <groupId>mysql</groupId>
             <artifactId>mysql-connector-java</artifactId>
@@ -55,6 +54,7 @@
 
     <build>
         <plugins>
+            <!-- Compiler plugin -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -64,7 +64,37 @@
                     <target>1.8</target>
                 </configuration>
             </plugin>
+
+            <!-- Shade-plugin: alleen bStats relokeren, Spigot-API uitsluiten -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.2.4</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <!-- Relocate bStats naar een eigen package -->
+                            <relocations>
+                                <relocation>
+                                    <pattern>org.bstats</pattern>
+                                    <shadedPattern>com.alphactx.shaded.org.bstats</shadedPattern>
+                                </relocation>
+                            </relocations>
+                            <!-- Zorg dat provided-deps niet gebundeld worden -->
+                            <artifactSet>
+                                <excludes>
+                                    <exclude>org.spigotmc:spigot-api</exclude>
+                                    <exclude>com.github.MilkBowl:VaultAPI</exclude>
+                                </excludes>
+                            </artifactSet>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
-
 </project>
