@@ -37,6 +37,8 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     private File housesFile;
     private FileConfiguration housesConfig;
     private Connection sqlConnection;
+    private boolean sqlDebug;
+    private int autoSaveTask = -1;
 
     public final Map<UUID, Integer> awaitingDoorAdd = new HashMap<>();
     public final Map<UUID, Integer> awaitingDoorRemove = new HashMap<>();
@@ -60,11 +62,13 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
             return;
         }
         loadHouses();
+        saveDefaultConfig();
+        sqlDebug = getConfig().getBoolean("database.debug", false);
         if (useMysql()) {
             connectDatabase();
             loadHousesFromDatabase();
+            startAutoSave();
         }
-        saveDefaultConfig();
         getServer().getPluginManager().registerEvents(this, this);
         Objects.requireNonNull(getCommand("houses")).setExecutor(new HousesCommand(this));
         new Metrics(this, 26286);
@@ -79,6 +83,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     @Override
     public void onDisable() {
         saveHouses();
+        stopAutoSave();
         closeDatabase();
                 getLogger().info("Houses Disabled!");
     }
@@ -113,10 +118,13 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     public void reloadPlugin() {
         reloadConfig();
         loadHouses();
+        sqlDebug = getConfig().getBoolean("database.debug", false);
         if (useMysql()) {
+            stopAutoSave();
             closeDatabase();
             connectDatabase();
             loadHousesFromDatabase();
+            startAutoSave();
         }
     }
     public void saveHouses() {
@@ -136,16 +144,19 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
 
     private void connectDatabase() {
         String host = getConfig().getString("database.host");
+        int port = getConfig().getInt("database.port", 3306);
         String user = getConfig().getString("database.user");
         String pass = getConfig().getString("database.pass");
         String db = getConfig().getString("database.database");
-        String url = "jdbc:mysql://" + host + "/" + db + "?useSSL=false";
+        String url = "jdbc:mysql://" + host + ":" + port + "/" + db + "?useSSL=false";
+        debug("Connecting to " + url);
         try {
             sqlConnection = DriverManager.getConnection(url, user, pass);
             try (PreparedStatement ps = sqlConnection.prepareStatement(
                     "CREATE TABLE IF NOT EXISTS houses (id INT PRIMARY KEY, rent TINYINT(1), price DOUBLE, owner VARCHAR(36), world VARCHAR(64), x INT, y INT, z INT, doors TEXT, trusted TEXT)")) {
                 ps.executeUpdate();
             }
+            debug("Connected to database");
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -154,11 +165,30 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     private void closeDatabase() {
         if (sqlConnection != null) {
             try { sqlConnection.close(); } catch (SQLException ignored) {}
+            sqlConnection = null;
+            debug("Database connection closed");
+        }
+    }
+
+    private void startAutoSave() {
+        int interval = getConfig().getInt("database.save-interval", 10);
+        if (interval <= 0) return;
+        autoSaveTask = getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
+            saveHousesToDatabase();
+            debug("Auto-saved houses to database");
+        }, interval * 20L, interval * 20L).getTaskId();
+    }
+
+    private void stopAutoSave() {
+        if (autoSaveTask != -1) {
+            getServer().getScheduler().cancelTask(autoSaveTask);
+            autoSaveTask = -1;
         }
     }
 
     private void loadHousesFromDatabase() {
         if (sqlConnection == null) return;
+        debug("Loading houses from database");
         try (Statement st = sqlConnection.createStatement()) {
             ResultSet rs = st.executeQuery("SELECT * FROM houses");
             int lastId = 0;
@@ -187,6 +217,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
 
     private void saveHousesToDatabase() {
         if (sqlConnection == null) return;
+        debug("Saving houses to database");
         try (Statement st = sqlConnection.createStatement()) {
             st.executeUpdate("DELETE FROM houses");
             if (housesConfig.isConfigurationSection("houses")) {
@@ -713,6 +744,12 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         UUID uid = e.getPlayer().getUniqueId();
         confirmBuy.remove(uid);
         confirmSell.remove(uid);
+    }
+
+    private void debug(String msg) {
+        if (sqlDebug) {
+            getLogger().info("[SQL] " + msg);
+        }
     }
 
 }
