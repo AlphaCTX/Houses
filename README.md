@@ -27,6 +27,7 @@ Commands:
 - `/houses list` – list all houses
 - `/houses owned` – list houses you own
 - `/houses adddoor <id>` – link a door to a house (admin, right-click the door after running the command)
+- `/houses removedoor <id>` – unlink a door from a house (admin, right-click the door after running the command)
 - `/houses reload` – reload configuration (admin only)
 - `/houses info <id>` – view details about a house
 - `/houses trust <id> <player>` – allow a player to open your doors
