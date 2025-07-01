@@ -53,6 +53,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
 
     private final Map<UUID, Integer> pendingTeleports = new HashMap<>();
     private final Map<UUID, org.bukkit.Location> teleportLocations = new HashMap<>();
+    public final Map<UUID, Integer> wandSelections = new HashMap<>();
     private int rentTask = -1;
 
     private boolean useMysql() {
@@ -425,6 +426,12 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         Block block = e.getClickedBlock();
         if (block == null) return;
         Player p = e.getPlayer();
+        ItemStack hand = e.getItem();
+        if (isWand(hand) && p.hasPermission("houses.admin")) {
+            handleWandUse(p, block);
+            e.setCancelled(true);
+            return;
+        }
         Material type = block.getType();
 
         // handle door additions or removals
@@ -908,6 +915,96 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
             Bukkit.getScheduler().cancelTask(task);
             p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.RED + "Teleport cancelled");
         }
+    }
+
+    private boolean isWand(ItemStack item) {
+        if (item == null) return false;
+        if (item.getType() != Material.BLAZE_ROD) return false;
+        if (!item.hasItemMeta()) return false;
+        String name = ChatColor.stripColor(item.getItemMeta().getDisplayName());
+        return "HOUSE WAND".equalsIgnoreCase(name);
+    }
+
+    private void handleWandUse(Player p, Block block) {
+        UUID uid = p.getUniqueId();
+        Material type = block.getType();
+        if (isSign(type) && block.getState() instanceof Sign) {
+            Sign sign = (Sign) block.getState();
+            String line0 = ChatColor.stripColor(sign.getLine(0));
+            if (line0.equalsIgnoreCase("[House]") || line0.equalsIgnoreCase("[Rent]")) {
+                String idPart = ChatColor.stripColor(sign.getLine(3));
+                if (idPart.toLowerCase().startsWith("id:")) {
+                    try {
+                        int id = Integer.parseInt(idPart.substring(3).trim());
+                        wandSelections.put(uid, id);
+                        p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.GREEN + "Selected house " + id);
+                    } catch (Exception ignored) {}
+                }
+                return;
+            }
+        }
+
+        Integer sel = wandSelections.get(uid);
+        if (sel == null) {
+            p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.RED + "No house selected");
+            return;
+        }
+
+        if (isDoor(type)) {
+            if (isDoorInHouse(sel, block)) {
+                removeDoorFromHouse(sel, block);
+                p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.GREEN + "Door removed from house " + sel);
+            } else {
+                addDoorToHouse(sel, block);
+                p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.GREEN + "Door added to house " + sel);
+            }
+            return;
+        }
+
+        Block adj = findAdjacentDoor(block);
+        if (adj != null && !isSign(type)) {
+            createEditableSign(p, block, adj);
+        }
+    }
+
+    private boolean isDoorInHouse(int id, Block door) {
+        List<String> doors = housesConfig.getStringList("houses." + id + ".doors");
+        String ser1 = serialize(door);
+        if (doors.contains(ser1)) return true;
+        Block other = getOtherHalf(door);
+        return doors.contains(serialize(other));
+    }
+
+    private Block getOtherHalf(Block door) {
+        BlockData data = door.getBlockData();
+        if (data instanceof Bisected) {
+            Bisected bis = (Bisected) data;
+            return bis.getHalf() == Bisected.Half.TOP ? door.getRelative(BlockFace.DOWN) : door.getRelative(BlockFace.UP);
+        }
+        return door;
+    }
+
+    private Block findAdjacentDoor(Block b) {
+        for (BlockFace face : new BlockFace[]{BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST}) {
+            Block adj = b.getRelative(face);
+            if (isDoor(adj.getType())) return adj;
+        }
+        return null;
+    }
+
+    private void createEditableSign(Player p, Block b, Block door) {
+        b.setType(Material.OAK_WALL_SIGN);
+        BlockFace face = b.getFace(door);
+        org.bukkit.block.data.type.WallSign data = (org.bukkit.block.data.type.WallSign) b.getBlockData();
+        if (face != null) data.setFacing(face);
+        b.setBlockData(data);
+        Sign sign = (Sign) b.getState();
+        sign.update();
+        try {
+            java.lang.reflect.Method m = Player.class.getMethod("openSign", Sign.class);
+            m.invoke(p, sign);
+        } catch (Exception ignored) {}
+        p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.GREEN + "Edit the sign to create a house");
     }
 
     private void debug(String msg) {
