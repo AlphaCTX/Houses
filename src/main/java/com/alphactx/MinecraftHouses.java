@@ -277,7 +277,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
                 for (String idStr : housesConfig.getConfigurationSection("houses").getKeys(false)) {
                     String path = "houses." + idStr;
                     PreparedStatement ps = sqlConnection.prepareStatement(
-                            "INSERT INTO houses(id,rent,price,owner,next_rent,world,x,y,z,doors,trusted) VALUES (?,?,?,?,?,?,?,?,?,?)");
+                            "INSERT INTO houses(id,rent,price,owner,next_rent,world,x,y,z,doors,trusted) VALUES (?,?,?,?,?,?,?,?,?,?,?)");
                     ps.setInt(1, Integer.parseInt(idStr));
                     ps.setBoolean(2, housesConfig.getBoolean(path + ".rent"));
                     ps.setDouble(3, housesConfig.getDouble(path + ".price"));
@@ -309,7 +309,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
                 String path = "houses." + idStr;
                 PreparedStatement ps = sqlConnection.prepareStatement(
                         "INSERT INTO houses(id,rent,price,owner,next_rent,world,x,y,z,doors,trusted) " +
-                                "VALUES (?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE id=id");
+                                "VALUES (?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE id=id");
                 ps.setInt(1, Integer.parseInt(idStr));
                 ps.setBoolean(2, housesConfig.getBoolean(path + ".rent"));
                 ps.setDouble(3, housesConfig.getDouble(path + ".price"));
