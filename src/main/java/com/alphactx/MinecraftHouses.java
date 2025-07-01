@@ -71,6 +71,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         sqlDebug = getConfig().getBoolean("database.debug", false);
         if (useMysql()) {
             connectDatabase();
+            mergeFileToDatabase();
             loadHousesFromDatabase();
             startAutoSave();
         }
@@ -130,6 +131,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
             stopAutoSave();
             closeDatabase();
             connectDatabase();
+            mergeFileToDatabase();
             loadHousesFromDatabase();
             startAutoSave();
         }
@@ -294,6 +296,55 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
                 }
             }
         } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void mergeFileToDatabase() {
+        if (sqlConnection == null) return;
+        if (!housesConfig.isConfigurationSection("houses")) return;
+        debug("Merging file houses into database");
+        try {
+            for (String idStr : housesConfig.getConfigurationSection("houses").getKeys(false)) {
+                String path = "houses." + idStr;
+                PreparedStatement ps = sqlConnection.prepareStatement(
+                        "INSERT INTO houses(id,rent,price,owner,next_rent,world,x,y,z,doors,trusted) " +
+                                "VALUES (?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE id=id");
+                ps.setInt(1, Integer.parseInt(idStr));
+                ps.setBoolean(2, housesConfig.getBoolean(path + ".rent"));
+                ps.setDouble(3, housesConfig.getDouble(path + ".price"));
+                ps.setString(4, housesConfig.getString(path + ".owner"));
+                ps.setLong(5, housesConfig.getLong(path + ".nextRent", 0L));
+                ps.setString(6, housesConfig.getString(path + ".world"));
+                ps.setInt(7, housesConfig.getInt(path + ".x"));
+                ps.setInt(8, housesConfig.getInt(path + ".y"));
+                ps.setInt(9, housesConfig.getInt(path + ".z"));
+                java.util.List<String> doors = housesConfig.getStringList(path + ".doors");
+                ps.setString(10, String.join(";", doors));
+                java.util.List<String> trusted = housesConfig.getStringList(path + ".trusted");
+                ps.setString(11, String.join(";", trusted));
+                ps.executeUpdate();
+                ps.close();
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void backupToDatabase() {
+        mergeFileToDatabase();
+        loadHousesFromDatabase();
+    }
+
+    public void backupToFile() {
+        loadHousesFromDatabase();
+        saveHousesFile();
+    }
+
+    private void saveHousesFile() {
+        try {
+            housesConfig.save(housesFile);
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }

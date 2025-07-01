@@ -184,6 +184,25 @@ public class HousesCommand implements TabExecutor {
             return true;
         }
 
+        if (args[0].equalsIgnoreCase("backup")) {
+            if (!p.hasPermission("houses.admin")) {
+                p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.RED + "No permission");
+                return true;
+            }
+            if (args.length < 2 || !(args[1].equalsIgnoreCase("sql") || args[1].equalsIgnoreCase("file"))) {
+                p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.RED + "/houses backup <sql/file>");
+                return true;
+            }
+            if (args[1].equalsIgnoreCase("sql")) {
+                plugin.backupToDatabase();
+                p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.GREEN + "Data copied to database");
+            } else {
+                plugin.backupToFile();
+                p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.GREEN + "Data copied to file");
+            }
+            return true;
+        }
+
         p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.RED + "Unknown subcommand");
         return true;
     }
@@ -191,11 +210,11 @@ public class HousesCommand implements TabExecutor {
     @Override
     public java.util.List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
-            java.util.List<String> subs = java.util.Arrays.asList("list","owned","info","trust","untrust","market","adddoor","removedoor","reload","changeprice");
+            java.util.List<String> subs = java.util.Arrays.asList("list","owned","info","trust","untrust","market","adddoor","removedoor","reload","changeprice","backup");
             if (sender.hasPermission("houses.admin")) {
                 // all available already include admin ones
             } else {
-                subs = subs.stream().filter(s -> !java.util.Arrays.asList("adddoor","removedoor","reload","changeprice").contains(s)).collect(java.util.stream.Collectors.toList());
+                subs = subs.stream().filter(s -> !java.util.Arrays.asList("adddoor","removedoor","reload","changeprice","backup").contains(s)).collect(java.util.stream.Collectors.toList());
             }
             return subs.stream().filter(s -> s.startsWith(args[0].toLowerCase())).collect(java.util.stream.Collectors.toList());
         }
@@ -215,6 +234,7 @@ public class HousesCommand implements TabExecutor {
             p.sendMessage(ChatColor.AQUA + "/houses removedoor <id>" + ChatColor.GRAY + " - remove a door from a house");
             p.sendMessage(ChatColor.AQUA + "/houses reload" + ChatColor.GRAY + " - reload configs");
             p.sendMessage(ChatColor.AQUA + "/houses changeprice <id> <value>" + ChatColor.GRAY + " - change house price");
+            p.sendMessage(ChatColor.AQUA + "/houses backup <sql/file>" + ChatColor.GRAY + " - copy data between storage");
         }
     }
 
