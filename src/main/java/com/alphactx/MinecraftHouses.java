@@ -213,13 +213,19 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     private void startRentTask() {
         int interval = getConfig().getInt("rent.check-interval", 600);
         if (interval <= 0) return;
-        rentTask = getServer().getScheduler().runTaskTimer(this, this::checkRentPayments, interval * 20L, interval * 20L).getTaskId();
+        rentTask = getServer().getScheduler()
+    .runTaskTimer(this, (Runnable) this::checkRentPayments,
+                  interval * 20L, interval * 20L)
+    .getTaskId();
     }
 
     private void startCleanupTask() {
         int interval = getConfig().getInt("cleanup.check-interval", 86400);
         if (interval <= 0) return;
-        cleanupTask = getServer().getScheduler().runTaskTimer(this, this::checkInactiveOwners, interval * 20L, interval * 20L).getTaskId();
+        cleanupTask = getServer().getScheduler()
+    .runTaskTimer(this, (Runnable) this::checkInactiveOwners,
+                  interval * 20L, interval * 20L)
+    .getTaskId();
     }
 
     private void stopRentTask() {
