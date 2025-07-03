@@ -1,4 +1,16 @@
+#===================================
+#=    AlphaCTX's Houses plugin     =
+#===================================
+# 
+#
+#================================
+#=     MAX OWNED PROPERTIES     =
+#================================
 max-houses-per-player: 3
+
+#============================
+#=     STOREAGE OPTIONS     =
+#============================
 database:
   use-mysql: false
   host: localhost
@@ -10,11 +22,17 @@ database:
   save-interval: 60 # seconds
   debug: false
 
+#=============================
+#=     TELEPORT SETTINGS     =
+#=============================
 teleport-wait: 5
 rent:
   period: 86400 # seconds
   check-interval: 600 # seconds
 
+#===========================
+#=     CUSTOM MESSAGES     =
+#===========================
 messages:
   buy-success: "&aPurchased house {id}"
   sell-success: "&aSold house {id}"
