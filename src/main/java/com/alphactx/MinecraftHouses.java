@@ -267,8 +267,9 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
                         sendConfiguredMessage(op.getPlayer(), "rent-stopped", Integer.parseInt(idStr));
                     }
                 }
+            }
+            saveHouses();
         }
-        saveHouses();
     }
 
     private void checkInactiveOwners() {
