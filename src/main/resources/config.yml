@@ -7,7 +7,7 @@ database:
   pass: password
   database: houses
   sqlite-file: houses.db
-  save-interval: 10 # seconds
+  save-interval: 60 # seconds
   debug: false
 
 teleport-wait: 5
