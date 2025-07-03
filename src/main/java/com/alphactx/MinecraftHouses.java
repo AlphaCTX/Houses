@@ -293,7 +293,6 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
             saveHouses();
         }
     }
-    }
 
     private void loadHousesFromDatabase() {
         loadHousesFromConnection(sqlConnection);
