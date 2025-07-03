@@ -53,6 +53,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     private final Map<UUID, org.bukkit.Location> teleportLocations = new HashMap<>();
     public final Map<UUID, Integer> wandSelections = new HashMap<>();
     private int rentTask = -1;
+    private int cleanupTask = -1;
 
     private boolean useMysql() {
         return getConfig().getBoolean("database.use-mysql", false);
@@ -74,6 +75,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(this, this);
         Objects.requireNonNull(getCommand("houses")).setExecutor(new HousesCommand(this));
         startRentTask();
+        startCleanupTask();
         new Metrics(this, 26286);
                 getLogger().info("  ╭───────────────────────╮");
                 getLogger().info("  │      AlphaCTX's       │");
@@ -88,6 +90,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         saveHousesSync();
         stopAutoSave();
         stopRentTask();
+        stopCleanupTask();
         closeDatabase();
                 getLogger().info("Houses Disabled!");
     }
@@ -213,6 +216,12 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         rentTask = getServer().getScheduler().runTaskTimer(this, this::checkRentPayments, interval * 20L, interval * 20L).getTaskId();
     }
 
+    private void startCleanupTask() {
+        int interval = getConfig().getInt("cleanup.check-interval", 86400);
+        if (interval <= 0) return;
+        cleanupTask = getServer().getScheduler().runTaskTimer(this, this::checkInactiveOwners, interval * 20L, interval * 20L).getTaskId();
+    }
+
     private void stopRentTask() {
         if (rentTask != -1) {
             getServer().getScheduler().cancelTask(rentTask);
@@ -220,8 +229,19 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         }
     }
 
+    private void stopCleanupTask() {
+        if (cleanupTask != -1) {
+            getServer().getScheduler().cancelTask(cleanupTask);
+            cleanupTask = -1;
+        }
+    }
+
     private void checkRentPayments() {
-        long period = getConfig().getLong("rent.period", 86400) * 1000L;
+        checkRentPayments(null);
+    }
+
+    private void checkRentPayments(UUID only) {
+        long period = getConfig().getLong("rent.period", 2400) * 1000L;
         long now = System.currentTimeMillis();
         if (housesConfig.isConfigurationSection("houses")) {
             for (String idStr : housesConfig.getConfigurationSection("houses").getKeys(false)) {
@@ -229,25 +249,50 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
                 if (!housesConfig.getBoolean(path + ".rent")) continue;
                 String owner = housesConfig.getString(path + ".owner");
                 if (owner == null) continue;
+                if (only != null && !owner.equals(only.toString())) continue;
                 long next = housesConfig.getLong(path + ".nextRent", 0L);
                 if (now >= next) {
                     OfflinePlayer op = Bukkit.getOfflinePlayer(UUID.fromString(owner));
+                    if (!op.isOnline()) continue;
                     double price = housesConfig.getDouble(path + ".price");
                     if (economy.has(op, price)) {
                         economy.withdrawPlayer(op, price);
                         housesConfig.set(path + ".nextRent", now + period);
-                        if (op.isOnline()) op.getPlayer().sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.GREEN + "Rent for house " + idStr + " paid");
+                        sendConfiguredMessage(op.getPlayer(), "rent-paid", Integer.parseInt(idStr));
                     } else {
                         housesConfig.set(path + ".owner", null);
                         housesConfig.set(path + ".trusted", new ArrayList<>());
                         housesConfig.set(path + ".nextRent", null);
                         updateHouseSign(Integer.parseInt(idStr), null);
-                        if (op.isOnline()) op.getPlayer().sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.RED + "Rent unpaid, house " + idStr + " lost");
+                        sendConfiguredMessage(op.getPlayer(), "rent-stopped", Integer.parseInt(idStr));
                     }
+                }
+        }
+        saveHouses();
+    }
+
+    private void checkInactiveOwners() {
+        int days = getConfig().getInt("cleanup.inactive-days", 30);
+        long limit = System.currentTimeMillis() - days * 86400000L;
+        if (housesConfig.isConfigurationSection("houses")) {
+            for (String idStr : housesConfig.getConfigurationSection("houses").getKeys(false)) {
+                String path = "houses." + idStr;
+                String owner = housesConfig.getString(path + ".owner");
+                if (owner == null) continue;
+                OfflinePlayer op = Bukkit.getOfflinePlayer(UUID.fromString(owner));
+                if (op.isOnline()) continue;
+                if (op.getLastPlayed() >= limit) continue;
+                housesConfig.set(path + ".owner", null);
+                housesConfig.set(path + ".trusted", new ArrayList<>());
+                housesConfig.set(path + ".nextRent", null);
+                updateHouseSign(Integer.parseInt(idStr), null);
+                if (op.isOnline()) {
+                    sendConfiguredMessage(op.getPlayer(), "inactive-removed", Integer.parseInt(idStr));
                 }
             }
             saveHouses();
         }
+    }
     }
 
     private void loadHousesFromDatabase() {
@@ -650,7 +695,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
             housesConfig.set(path + ".owner", p.getUniqueId().toString());
             housesConfig.set(path + ".trusted", new ArrayList<>());
             if (rent) {
-                long period = getConfig().getLong("rent.period", 86400) * 1000L;
+                long period = getConfig().getLong("rent.period", 2400) * 1000L;
                 housesConfig.set(path + ".nextRent", System.currentTimeMillis() + period);
             }
             saveHouses();
@@ -895,6 +940,12 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
                 cancelTeleport(p);
             }
         }
+    }
+
+    @EventHandler
+    public void onJoin(org.bukkit.event.player.PlayerJoinEvent e) {
+        UUID uid = e.getPlayer().getUniqueId();
+        Bukkit.getScheduler().runTaskLater(this, () -> checkRentPayments(uid), 20L);
     }
 
     private void cancelTeleport(Player p) {

@@ -64,6 +64,33 @@ public class HousesCommand implements TabExecutor {
             return true;
         }
 
+        if (args[0].equalsIgnoreCase("checkrent")) {
+            long now = System.currentTimeMillis();
+            boolean any = false;
+            if (cfg.isConfigurationSection("houses")) {
+                for (String id : cfg.getConfigurationSection("houses").getKeys(false)) {
+                    String path = "houses." + id;
+                    if (!cfg.getBoolean(path + ".rent")) continue;
+                    if (!p.getUniqueId().toString().equals(cfg.getString(path + ".owner"))) continue;
+                    long next = cfg.getLong(path + ".nextRent", 0L);
+                    long diff = next - now;
+                    if (next == 0L || diff <= 0) {
+                        p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.RED + " Rent overdue for house " + id);
+                    } else {
+                        long sec = diff / 1000;
+                        long min = sec / 60;
+                        sec %= 60;
+                        p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.GREEN + "House " + id + " next rent in " + min + "m" + sec + "s");
+                    }
+                    any = true;
+                }
+            }
+            if (!any) {
+                p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.GRAY + " No rented houses");
+            }
+            return true;
+        }
+
         if (args[0].equalsIgnoreCase("info")) {
             if (args.length < 2) {
                 p.sendMessage(ChatColor.RED + "/houses info <id>");
@@ -227,7 +254,7 @@ public class HousesCommand implements TabExecutor {
     @Override
     public java.util.List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
-            java.util.List<String> subs = java.util.Arrays.asList("list","owned","info","trust","untrust","market","wand","adddoor","removedoor","reload","changeprice","backup");
+            java.util.List<String> subs = java.util.Arrays.asList("list","owned","info","trust","untrust","market","checkrent","wand","adddoor","removedoor","reload","changeprice","backup");
             if (sender.hasPermission("houses.admin")) {
                 // all available already include admin ones
             } else {
@@ -246,6 +273,7 @@ public class HousesCommand implements TabExecutor {
         p.sendMessage(ChatColor.AQUA + "/houses trust <id> <player>" + ChatColor.GRAY + " - trust player");
         p.sendMessage(ChatColor.AQUA + "/houses untrust <id> <player>" + ChatColor.GRAY + " - untrust player");
         p.sendMessage(ChatColor.AQUA + "/houses market" + ChatColor.GRAY + " - open market GUI");
+        p.sendMessage(ChatColor.AQUA + "/houses checkrent" + ChatColor.GRAY + " - time until next rent");
         if (p.hasPermission("houses.admin")) {
             p.sendMessage(ChatColor.AQUA + "/houses wand" + ChatColor.GRAY + " - get a house wand");
             p.sendMessage(ChatColor.AQUA + "/houses adddoor <id>" + ChatColor.GRAY + " - add a door to a house");

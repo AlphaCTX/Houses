@@ -27,8 +27,12 @@ database:
 #=============================
 teleport-wait: 5
 rent:
-  period: 86400 # seconds
+  period: 2400 # seconds (2 Minecraft days)
   check-interval: 600 # seconds
+
+cleanup:
+  check-interval: 86400 # seconds
+  inactive-days: 30
 
 #===========================
 #=     CUSTOM MESSAGES     =
@@ -39,3 +43,6 @@ messages:
   rent-success: "&aRented house {id}"
   stop-rent-success: "&aStopped renting house {id}"
   door-locked: "&cYou don't own this house"
+  rent-paid: "&aRent for house {id} paid"
+  rent-stopped: "&cRent unpaid, house {id} lost"
+  inactive-removed: "&cHouse {id} removed due to inactivity"
