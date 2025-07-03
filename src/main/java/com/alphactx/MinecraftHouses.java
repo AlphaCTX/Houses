@@ -85,7 +85,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
 
     @Override
     public void onDisable() {
-        saveHouses();
+        saveHousesSync();
         stopAutoSave();
         stopRentTask();
         closeDatabase();
@@ -120,7 +120,18 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         loadHousesFromDatabase();
         startAutoSave();
     }
+    /**
+     * Save houses asynchronously to avoid blocking the server thread.
+     */
     public void saveHouses() {
+        Bukkit.getScheduler().runTaskAsynchronously(this, this::saveHousesToDatabase);
+    }
+
+    /**
+     * Save houses synchronously. Used during plugin shutdown where we
+     * need to ensure everything is written before closing the database.
+     */
+    public void saveHousesSync() {
         saveHousesToDatabase();
     }
 
@@ -183,7 +194,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     private void startAutoSave() {
         int interval = getConfig().getInt("database.save-interval", 10);
         if (interval <= 0) return;
-        autoSaveTask = getServer().getScheduler().runTaskTimer(this, () -> {
+        autoSaveTask = getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
             saveHousesToDatabase();
             debug("Auto-saved houses to database");
         }, interval * 20L, interval * 20L).getTaskId();
