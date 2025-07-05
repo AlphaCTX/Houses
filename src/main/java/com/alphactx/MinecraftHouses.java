@@ -55,6 +55,12 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     private int rentTask = -1;
     private int cleanupTask = -1;
 
+    private boolean dynmapEnabled;
+    private boolean bluemapEnabled;
+    private Object dynmapMarkerAPI;
+    private Object dynmapMarkerSet;
+    private final java.util.List<Object> bluemapSets = new java.util.ArrayList<>();
+
     private boolean useMysql() {
         return getConfig().getBoolean("database.use-mysql", false);
     }
@@ -80,6 +86,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         if (getServer().getPluginManager().isPluginEnabled("PlaceholderAPI")) {
             new HousesPlaceholder(this).register();
         }
+        setupMapIntegrations();
                 getLogger().info("  ╭───────────────────────╮");
                 getLogger().info("  │      AlphaCTX's       │");
                 getLogger().info("  │        Houses         │");
@@ -95,6 +102,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         stopRentTask();
         stopCleanupTask();
         closeDatabase();
+        cleanupMapIntegrations();
                 getLogger().info("Houses Disabled!");
     }
 
@@ -125,6 +133,8 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         connectDatabase();
         loadHousesFromDatabase();
         startAutoSave();
+        cleanupMapIntegrations();
+        setupMapIntegrations();
     }
     /**
      * Save houses asynchronously to avoid blocking the server thread.
@@ -245,6 +255,204 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         }
     }
 
+    private void setupMapIntegrations() {
+        dynmapEnabled = getConfig().getBoolean("integrations.dynmap", false);
+        bluemapEnabled = getConfig().getBoolean("integrations.bluemap", false);
+        if (dynmapEnabled) initDynmap();
+        if (bluemapEnabled) initBlueMap();
+    }
+
+    private void cleanupMapIntegrations() {
+        if (dynmapMarkerSet != null) {
+            removeAllDynmapMarkers();
+            dynmapMarkerSet = null;
+            dynmapMarkerAPI = null;
+        }
+        if (!bluemapSets.isEmpty()) {
+            removeAllBlueMapMarkers();
+            bluemapSets.clear();
+        }
+    }
+
+    private void initDynmap() {
+        try {
+            org.bukkit.plugin.Plugin dyn = getServer().getPluginManager().getPlugin("dynmap");
+            if (dyn == null) return;
+            Class<?> apiClass = Class.forName("org.dynmap.DynmapCommonAPI");
+            if (!apiClass.isInstance(dyn)) return;
+            dynmapMarkerAPI = apiClass.getMethod("getMarkerAPI").invoke(dyn);
+            if (dynmapMarkerAPI == null) return;
+            Class<?> markerAPI = Class.forName("org.dynmap.markers.MarkerAPI");
+            Object set = markerAPI.getMethod("getMarkerSet", String.class).invoke(dynmapMarkerAPI, "houses");
+            if (set == null) {
+                set = markerAPI.getMethod("createMarkerSet", String.class, String.class, java.util.Set.class, boolean.class)
+                        .invoke(dynmapMarkerAPI, "houses", "Houses", null, true);
+            }
+            dynmapMarkerSet = set;
+        } catch (Exception ex) {
+            getLogger().warning("Dynmap hook failed: " + ex.getMessage());
+        }
+        updateAllDynmapMarkers();
+    }
+
+    private void initBlueMap() {
+        try {
+            Class<?> apiClass = Class.forName("de.bluecolored.bluemap.api.BlueMapAPI");
+            java.util.Optional<?> opt = (java.util.Optional<?>) apiClass.getMethod("getInstance").invoke(null);
+            if (!((Boolean) opt.getClass().getMethod("isPresent").invoke(opt))) return;
+            Object api = opt.getClass().getMethod("get").invoke(opt);
+            java.util.Collection<?> maps = (java.util.Collection<?>) apiClass.getMethod("getMaps").invoke(api);
+            Class<?> markerSetClass = Class.forName("de.bluecolored.bluemap.api.markers.MarkerSet");
+            for (Object map : maps) {
+                java.util.Map<?,?> sets = (java.util.Map<?,?>) map.getClass().getMethod("getMarkerSets").invoke(map);
+                Object set = sets.get("houses");
+                if (set == null) {
+                    Object builder = markerSetClass.getMethod("builder").invoke(null);
+                    builder.getClass().getMethod("label", String.class).invoke(builder, "Houses");
+                    builder.getClass().getMethod("toggleable", Boolean.class).invoke(builder, true);
+                    set = builder.getClass().getMethod("build").invoke(builder);
+                    sets.put("houses", set);
+                }
+                bluemapSets.add(set);
+            }
+        } catch (Exception ex) {
+            getLogger().warning("BlueMap hook failed: " + ex.getMessage());
+            bluemapSets.clear();
+        }
+        updateAllBlueMapMarkers();
+    }
+
+    private void updateMapMarkers(int id) {
+        updateDynmapMarker(id);
+        updateBlueMapMarker(id);
+    }
+
+    private void removeMapMarker(int id) {
+        removeDynmapMarker(id);
+        removeBlueMapMarker(id);
+    }
+
+    private void updateAllMapMarkers() {
+        if (housesConfig.isConfigurationSection("houses")) {
+            for (String idStr : housesConfig.getConfigurationSection("houses").getKeys(false)) {
+                try { updateMapMarkers(Integer.parseInt(idStr)); } catch (Exception ignored) {}
+            }
+        }
+    }
+
+    private void removeAllDynmapMarkers() {
+        if (dynmapMarkerSet == null) return;
+        try {
+            java.util.Set<?> markers = (java.util.Set<?>) dynmapMarkerSet.getClass().getMethod("getMarkers").invoke(dynmapMarkerSet);
+            for (Object m : markers.toArray()) {
+                m.getClass().getMethod("deleteMarker").invoke(m);
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private void removeAllBlueMapMarkers() {
+        try {
+            for (Object set : bluemapSets) {
+                java.util.Map<?,?> markers = (java.util.Map<?,?>) set.getClass().getMethod("getMarkers").invoke(set);
+                markers.clear();
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private void updateAllDynmapMarkers() {
+        if (dynmapMarkerSet != null)
+            updateAllMapMarkers();
+    }
+
+    private void updateAllBlueMapMarkers() {
+        if (!bluemapSets.isEmpty())
+            updateAllMapMarkers();
+    }
+
+    private void updateDynmapMarker(int id) {
+        if (dynmapMarkerSet == null) return;
+        try {
+            String path = "houses." + id;
+            String world = housesConfig.getString(path + ".world");
+            if (world == null) return;
+            double x = housesConfig.getDouble(path + ".x") + 0.5;
+            double y = housesConfig.getDouble(path + ".y");
+            double z = housesConfig.getDouble(path + ".z") + 0.5;
+            boolean rent = housesConfig.getBoolean(path + ".rent");
+            double price = housesConfig.getDouble(path + ".price");
+            String owner = housesConfig.getString(path + ".owner");
+            String ownerName = owner == null ? null : Bukkit.getOfflinePlayer(java.util.UUID.fromString(owner)).getName();
+            String label = "House #" + id;
+            String desc = (ownerName == null ? "Available" : "Owner: " + ownerName) + "<br>Price: " + price + (rent ? " rent" : " buy");
+            Class<?> markerSet = dynmapMarkerSet.getClass();
+            Object marker = markerSet.getMethod("findMarker", String.class).invoke(dynmapMarkerSet, "house-" + id);
+            Class<?> markerAPI = Class.forName("org.dynmap.markers.MarkerAPI");
+            Object icon = markerAPI.getMethod("getMarkerIcon", String.class).invoke(dynmapMarkerAPI, "default");
+            if (marker == null) {
+                marker = markerSet.getMethod("createMarker", String.class, String.class, String.class, double.class, double.class, double.class, Class.forName("org.dynmap.markers.MarkerIcon"), boolean.class)
+                        .invoke(dynmapMarkerSet, "house-" + id, label, world, x, y, z, icon, true);
+            } else {
+                marker.getClass().getMethod("setLocation", String.class, double.class, double.class, double.class)
+                        .invoke(marker, world, x, y, z);
+                marker.getClass().getMethod("setLabel", String.class).invoke(marker, label);
+            }
+            marker.getClass().getMethod("setDescription", String.class).invoke(marker, desc);
+        } catch (Exception ex) {
+            getLogger().warning("Dynmap marker error: " + ex.getMessage());
+        }
+    }
+
+    private void removeDynmapMarker(int id) {
+        if (dynmapMarkerSet == null) return;
+        try {
+            Object marker = dynmapMarkerSet.getClass().getMethod("findMarker", String.class).invoke(dynmapMarkerSet, "house-" + id);
+            if (marker != null) marker.getClass().getMethod("deleteMarker").invoke(marker);
+        } catch (Exception ignored) {}
+    }
+
+    private void updateBlueMapMarker(int id) {
+        if (bluemapSets.isEmpty()) return;
+        try {
+            String path = "houses." + id;
+            int x = housesConfig.getInt(path + ".x");
+            int y = housesConfig.getInt(path + ".y");
+            int z = housesConfig.getInt(path + ".z");
+            boolean rent = housesConfig.getBoolean(path + ".rent");
+            double price = housesConfig.getDouble(path + ".price");
+            String owner = housesConfig.getString(path + ".owner");
+            String ownerName = owner == null ? null : Bukkit.getOfflinePlayer(java.util.UUID.fromString(owner)).getName();
+            String label = (rent ? "[Rent] " : "[Buy] ") + "House #" + id;
+            String desc = (ownerName == null ? "Available" : "Owner: " + ownerName) + " Price: " + price;
+            Class<?> v3d = Class.forName("com.flowpowered.math.vector.Vector3d");
+            Object pos = v3d.getConstructor(double.class, double.class, double.class).newInstance(x + 0.5, (double) y, z + 0.5);
+            Class<?> poi = Class.forName("de.bluecolored.bluemap.api.markers.POIMarker");
+            for (Object set : bluemapSets) {
+                java.util.Map<String,Object> markers = (java.util.Map<String,Object>) set.getClass().getMethod("getMarkers").invoke(set);
+                Object marker = markers.get("house-" + id);
+                if (marker == null) {
+                    marker = poi.getConstructor(String.class, v3d).newInstance(label, pos);
+                    markers.put("house-" + id, marker);
+                } else {
+                    marker.getClass().getMethod("setPosition", v3d).invoke(marker, pos);
+                    marker.getClass().getMethod("setLabel", String.class).invoke(marker, label);
+                }
+                marker.getClass().getMethod("setDetail", String.class).invoke(marker, desc);
+            }
+        } catch (Exception ex) {
+            getLogger().warning("BlueMap marker error: " + ex.getMessage());
+        }
+    }
+
+    private void removeBlueMapMarker(int id) {
+        if (bluemapSets.isEmpty()) return;
+        try {
+            for (Object set : bluemapSets) {
+                java.util.Map<?,?> markers = (java.util.Map<?,?>) set.getClass().getMethod("getMarkers").invoke(set);
+                markers.remove("house-" + id);
+            }
+        } catch (Exception ignored) {}
+    }
+
     private void checkRentPayments() {
         checkRentPayments(null);
     }
@@ -333,6 +541,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
                 housesConfig.set(path + ".trusted", trusted == null || trusted.isEmpty() ? new ArrayList<>() : Arrays.asList(trusted.split(";")));
             }
             housesConfig.set("lastId", lastId);
+            updateAllMapMarkers();
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -442,6 +651,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         e.setLine(1, "$" + price);
         e.setLine(2, "");
         e.setLine(3, "ID: " + id);
+        updateMapMarkers(id);
     }
 
     @EventHandler
@@ -459,6 +669,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         if (e.getPlayer().hasPermission("houses.admin")) {
             housesConfig.set("houses." + id, null);
             saveHouses();
+            removeMapMarker(id);
             e.getPlayer().sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.GREEN + "House " + id + " removed");
         }
     }
@@ -676,6 +887,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
             sign.setLine(3, "ID: " + id);
             sign.update();
         }
+        updateMapMarkers(id);
     }
 
     private void buyHouse(Player p, int id) {

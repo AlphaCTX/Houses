@@ -3,7 +3,7 @@ version: 1.2.1
 main: com.alphactx.MinecraftHouses
 api-version: 1.16
 depend: [Vault]
-softdepend: [PlaceholderAPI]
+softdepend: [PlaceholderAPI, dynmap, BlueMap]
 commands:
   houses:
     description: House commands

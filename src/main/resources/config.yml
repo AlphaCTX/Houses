@@ -46,3 +46,10 @@ messages:
   rent-paid: "&aRent for house {id} paid"
   rent-stopped: "&cRent unpaid, house {id} lost"
   inactive-removed: "&cHouse {id} removed due to inactivity"
+
+#===========================
+#=       MAP SETTINGS     =
+#===========================
+integrations:
+  dynmap: false
+  bluemap: false
