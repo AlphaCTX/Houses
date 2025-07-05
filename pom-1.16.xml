@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.alphactx</groupId>
     <artifactId>Houses</artifactId>
-    <version>1.1.7-mc1.16</version>
+    <version>1.2.1-mc1.16</version>
     <packaging>jar</packaging>
 
     <repositories>
@@ -17,6 +17,15 @@
         <repository>
             <id>jitpack.io</id>
             <url>https://jitpack.io</url>
+        </repository>
+        <repository>
+            <id>placeholderapi</id>
+            <url>https://repo.extendedclip.com/content/repositories/placeholderapi/</url>
+        </repository>
+        <!-- BlueColored Releases voor BlueMapAPI -->
+        <repository>
+            <id>bluecolored</id>
+            <url>https://repo.bluecolored.de/releases</url>
         </repository>
     </repositories>
 
@@ -44,13 +53,38 @@
             <version>3.0.2</version>
         </dependency>
 
+        <!-- PlaceholderAPI voor placeholders -->
+        <dependency>
+            <groupId>me.clip</groupId>
+            <artifactId>placeholderapi</artifactId>
+            <version>2.11.5</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- BlueMap API voor map markers (upgrade naar 2.7.2) -->
+        <dependency>
+            <groupId>de.bluecolored.bluemap</groupId>
+            <artifactId>BlueMapAPI</artifactId>
+            <version>2.7.2</version>
+            <scope>provided</scope>
+        </dependency>
+        <!-- alternatief: als je per se 2.7.0 wilt, via Jitpack -->
+        <!--
+        <dependency>
+            <groupId>com.github.BlueMap-Minecraft</groupId>
+            <artifactId>BlueMapAPI</artifactId>
+            <version>2.7.0</version>
+            <scope>provided</scope>
+        </dependency>
+        -->
+
         <!-- MySQL Connector (in je JAR of server-classpath) -->
         <dependency>
             <groupId>mysql</groupId>
             <artifactId>mysql-connector-java</artifactId>
             <version>8.0.33</version>
         </dependency>
-        <!-- SQLite driver for local storage -->
+        <!-- SQLite driver voor lokale opslag -->
         <dependency>
             <groupId>org.xerial</groupId>
             <artifactId>sqlite-jdbc</artifactId>
@@ -83,14 +117,12 @@
                             <goal>shade</goal>
                         </goals>
                         <configuration>
-                            <!-- Relocate bStats naar een eigen package -->
                             <relocations>
                                 <relocation>
                                     <pattern>org.bstats</pattern>
                                     <shadedPattern>com.alphactx.shaded.org.bstats</shadedPattern>
                                 </relocation>
                             </relocations>
-                            <!-- Zorg dat provided-deps niet gebundeld worden -->
                             <artifactSet>
                                 <excludes>
                                     <exclude>org.spigotmc:spigot-api</exclude>

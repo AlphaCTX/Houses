@@ -30,6 +30,10 @@ public class HousesCommand implements TabExecutor {
             return true;
         }
         Player p = (Player) sender;
+        if (!p.hasPermission("houses.use") && !p.hasPermission("houses.admin")) {
+            p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.RED + "No permission");
+            return true;
+        }
         FileConfiguration cfg = plugin.getHousesConfig();
         if (args.length == 0 || args[0].equalsIgnoreCase("help")) {
             sendHelp(p);

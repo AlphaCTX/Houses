@@ -1,8 +1,9 @@
 name: MinecraftHouses
-version: 1.2.0
+version: 1.2.1
 main: com.alphactx.MinecraftHouses
 api-version: 1.16
 depend: [Vault]
+softdepend: [PlaceholderAPI, dynmap, BlueMap]
 commands:
   houses:
     description: House commands
@@ -11,6 +12,8 @@ commands:
     tab-completer: com.alphactx.HousesCommand
 permissions:
   mchouses.use:
+    default: true
+  houses.use:
     default: true
   houses.admin:
     default: op

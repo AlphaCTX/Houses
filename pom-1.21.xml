@@ -1,29 +1,35 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" 
+<project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
                              http://maven.apache.org/xsd/maven-4.0.0.xsd">
-    
+
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.alphactx</groupId>
     <artifactId>Houses</artifactId>
-    <version>1.1.7-mc1.21</version>
+    <version>1.2.1-mc1.21</version>
     <packaging>jar</packaging>
 
     <repositories>
-        <!-- Spigot snapshot repository -->
         <repository>
             <id>spigot-repo</id>
             <url>https://hub.spigotmc.org/nexus/content/repositories/snapshots/</url>
         </repository>
-        <!-- JitPack (voor Vault of andere libs indien nodig) -->
         <repository>
             <id>jitpack.io</id>
             <url>https://jitpack.io</url>
         </repository>
+        <repository>
+            <id>placeholderapi</id>
+            <url>https://repo.extendedclip.com/content/repositories/placeholderapi/</url>
+        </repository>
+        <repository>
+            <id>bluecolored</id>
+            <url>https://repo.bluecolored.de/releases</url>
+        </repository>
     </repositories>
 
     <dependencies>
-        <!-- Spigot API 1.21 (provided zodat het niet in je JAR komt) -->
+        <!-- Spigot API 1.21 (provided) -->
         <dependency>
             <groupId>org.spigotmc</groupId>
             <artifactId>spigot-api</artifactId>
@@ -31,7 +37,7 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- Vault API (provided, door server geleverd) -->
+        <!-- Vault API (provided) -->
         <dependency>
             <groupId>com.github.MilkBowl</groupId>
             <artifactId>VaultAPI</artifactId>
@@ -39,20 +45,37 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- bStats Metrics (wordt geshaded voor mee-insluiten) -->
+        <!-- bStats Metrics (wordt geshaded) -->
         <dependency>
             <groupId>org.bstats</groupId>
             <artifactId>bstats-bukkit</artifactId>
             <version>3.0.2</version>
         </dependency>
 
-        <!-- MySQL Connector (één van beide: bundelen óf op server-classpath) -->
+        <!-- PlaceholderAPI (provided) -->
+        <dependency>
+            <groupId>me.clip</groupId>
+            <artifactId>placeholderapi</artifactId>
+            <version>2.11.5</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- BlueMap API (upgrade naar 2.7.2, correct groupId/artifactId) -->
+        <dependency>
+            <groupId>de.bluecolored.bluemap</groupId>
+            <artifactId>BlueMapAPI</artifactId>
+            <version>2.7.2</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- MySQL Connector -->
         <dependency>
             <groupId>mysql</groupId>
             <artifactId>mysql-connector-java</artifactId>
             <version>8.0.33</version>
         </dependency>
-        <!-- SQLite driver for local storage -->
+
+        <!-- SQLite JDBC Driver -->
         <dependency>
             <groupId>org.xerial</groupId>
             <artifactId>sqlite-jdbc</artifactId>
@@ -62,7 +85,7 @@
 
     <build>
         <plugins>
-            <!-- Java-compiler instellen -->
+            <!-- Compiler plugin -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -73,7 +96,7 @@
                 </configuration>
             </plugin>
 
-            <!-- Shade-plugin: alleen bStats relokeren, Spigot & Vault uitsluiten -->
+            <!-- Shade-plugin: relocaliseer bStats, sluit provided-deps uit -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -85,14 +108,12 @@
                             <goal>shade</goal>
                         </goals>
                         <configuration>
-                            <!-- Relocate alleen bStats naar eigen package -->
                             <relocations>
                                 <relocation>
                                     <pattern>org.bstats</pattern>
                                     <shadedPattern>com.alphactx.shaded.org.bstats</shadedPattern>
                                 </relocation>
                             </relocations>
-                            <!-- voorkom bundeling van provided-deps -->
                             <artifactSet>
                                 <excludes>
                                     <exclude>org.spigotmc:spigot-api</exclude>
