@@ -60,6 +60,8 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     private Object dynmapMarkerAPI;
     private Object dynmapMarkerSet;
     private final java.util.List<Object> bluemapSets = new java.util.ArrayList<>();
+    private Object bluemapEnableListener;
+    private Object bluemapDisableListener;
 
     private boolean useMysql() {
         return getConfig().getBoolean("database.use-mysql", false);
@@ -272,6 +274,17 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
             removeAllBlueMapMarkers();
             bluemapSets.clear();
         }
+        if (bluemapEnableListener != null) {
+            try {
+                Class<?> apiClass = Class.forName("de.bluecolored.bluemap.api.BlueMapAPI");
+                Class<?> consumerClass = Class.forName("java.util.function.Consumer");
+                java.lang.reflect.Method unregister = apiClass.getMethod("unregisterListener", consumerClass);
+                unregister.invoke(null, bluemapEnableListener);
+                unregister.invoke(null, bluemapDisableListener);
+            } catch (Exception ignored) {}
+            bluemapEnableListener = null;
+            bluemapDisableListener = null;
+        }
     }
 
     private void initDynmap() {
@@ -298,28 +311,63 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     private void initBlueMap() {
         try {
             Class<?> apiClass = Class.forName("de.bluecolored.bluemap.api.BlueMapAPI");
+            Class<?> consumerClass = Class.forName("java.util.function.Consumer");
+            java.lang.reflect.Method onEnable = apiClass.getMethod("onEnable", consumerClass);
+            java.lang.reflect.Method onDisable = apiClass.getMethod("onDisable", consumerClass);
+
+            bluemapEnableListener = java.lang.reflect.Proxy.newProxyInstance(
+                    consumerClass.getClassLoader(), new Class[]{consumerClass},
+                    (proxy, method, args) -> {
+                        if ("accept".equals(method.getName())) {
+                            setupBlueMap(args[0]);
+                            updateAllBlueMapMarkers();
+                        }
+                        return null;
+                    });
+
+            bluemapDisableListener = java.lang.reflect.Proxy.newProxyInstance(
+                    consumerClass.getClassLoader(), new Class[]{consumerClass},
+                    (proxy, method, args) -> {
+                        if ("accept".equals(method.getName())) {
+                            removeAllBlueMapMarkers();
+                            bluemapSets.clear();
+                        }
+                        return null;
+                    });
+
+            onEnable.invoke(null, bluemapEnableListener);
+            onDisable.invoke(null, bluemapDisableListener);
+
             java.util.Optional<?> opt = (java.util.Optional<?>) apiClass.getMethod("getInstance").invoke(null);
-            if (!((Boolean) opt.getClass().getMethod("isPresent").invoke(opt))) return;
-            Object api = opt.getClass().getMethod("get").invoke(opt);
-            java.util.Collection<?> maps = (java.util.Collection<?>) apiClass.getMethod("getMaps").invoke(api);
-            Class<?> markerSetClass = Class.forName("de.bluecolored.bluemap.api.markers.MarkerSet");
-            for (Object map : maps) {
-                java.util.Map<?,?> sets = (java.util.Map<?,?>) map.getClass().getMethod("getMarkerSets").invoke(map);
-                Object set = sets.get("houses");
-                if (set == null) {
-                    Object builder = markerSetClass.getMethod("builder").invoke(null);
-                    builder.getClass().getMethod("label", String.class).invoke(builder, "Houses");
-                    builder.getClass().getMethod("toggleable", Boolean.class).invoke(builder, true);
-                    set = builder.getClass().getMethod("build").invoke(builder);
-                    sets.put("houses", set);
-                }
-                bluemapSets.add(set);
+            if (((Boolean) opt.getClass().getMethod("isPresent").invoke(opt))) {
+                Object api = opt.getClass().getMethod("get").invoke(opt);
+                setupBlueMap(api);
+                updateAllBlueMapMarkers();
             }
+
         } catch (Exception ex) {
             getLogger().warning("BlueMap hook failed: " + ex.getMessage());
             bluemapSets.clear();
         }
-        updateAllBlueMapMarkers();
+    }
+
+    private void setupBlueMap(Object api) throws Exception {
+        bluemapSets.clear();
+        java.util.Collection<?> maps = (java.util.Collection<?>) api.getClass().getMethod("getMaps").invoke(api);
+        Class<?> markerSetClass = Class.forName("de.bluecolored.bluemap.api.markers.MarkerSet");
+        for (Object map : maps) {
+            @SuppressWarnings("unchecked")
+            java.util.Map<String, Object> sets = (java.util.Map<String, Object>) map.getClass().getMethod("getMarkerSets").invoke(map);
+            Object set = sets.get("houses");
+            if (set == null) {
+                Object builder = markerSetClass.getMethod("builder").invoke(null);
+                builder.getClass().getMethod("label", String.class).invoke(builder, "Houses");
+                builder.getClass().getMethod("toggleable", Boolean.class).invoke(builder, true);
+                set = builder.getClass().getMethod("build").invoke(builder);
+                sets.put("houses", set);
+            }
+            bluemapSets.add(set);
+        }
     }
 
     private void updateMapMarkers(int id) {
