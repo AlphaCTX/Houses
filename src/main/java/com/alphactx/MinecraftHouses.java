@@ -27,6 +27,11 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import net.milkbowl.vault.economy.Economy;
 import org.bstats.bukkit.Metrics;
+import de.bluecolored.bluemap.api.BlueMapAPI;
+import de.bluecolored.bluemap.api.map.BlueMapMap;
+import de.bluecolored.bluemap.api.markers.MarkerSet;
+import de.bluecolored.bluemap.api.markers.POIMarker;
+import com.flowpowered.math.vector.Vector3d;
 
 import java.io.File;
 import java.util.*;
@@ -59,10 +64,9 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     private boolean bluemapEnabled;
     private Object dynmapMarkerAPI;
     private Object dynmapMarkerSet;
-    private final java.util.List<Object> bluemapSets = new java.util.ArrayList<>();
-    private Object bluemapEnableListener;
-    private Object bluemapDisableListener;
-    private ClassLoader bluemapLoader;
+    private final java.util.List<MarkerSet> bluemapSets = new java.util.ArrayList<>();
+    private java.util.function.Consumer<BlueMapAPI> bluemapEnableListener;
+    private java.util.function.Consumer<BlueMapAPI> bluemapDisableListener;
 
     private boolean useMysql() {
         return getConfig().getBoolean("database.use-mysql", false);
@@ -276,16 +280,10 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
             bluemapSets.clear();
         }
         if (bluemapEnableListener != null) {
-            try {
-                Class<?> apiClass = Class.forName("de.bluecolored.bluemap.api.BlueMapAPI");
-                Class<?> consumerClass = Class.forName("java.util.function.Consumer");
-                java.lang.reflect.Method unregister = apiClass.getMethod("unregisterListener", consumerClass);
-                unregister.invoke(null, bluemapEnableListener);
-                unregister.invoke(null, bluemapDisableListener);
-            } catch (Exception ignored) {}
+            BlueMapAPI.unregisterListener(bluemapEnableListener);
+            BlueMapAPI.unregisterListener(bluemapDisableListener);
             bluemapEnableListener = null;
             bluemapDisableListener = null;
-            bluemapLoader = null;
         }
     }
 
@@ -311,68 +309,29 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     }
 
     private void initBlueMap() {
-        try {
-            org.bukkit.plugin.Plugin bm = getServer().getPluginManager().getPlugin("BlueMap");
-            if (bm == null) return;
-            bluemapLoader = bm.getClass().getClassLoader();
-
-            Class<?> apiClass = Class.forName("de.bluecolored.bluemap.api.BlueMapAPI", true, bluemapLoader);
-            Class<?> consumerClass = Class.forName("java.util.function.Consumer");
-            java.lang.reflect.Method onEnable = apiClass.getMethod("onEnable", consumerClass);
-            java.lang.reflect.Method onDisable = apiClass.getMethod("onDisable", consumerClass);
-
-            ClassLoader loader = getClass().getClassLoader();
-
-            bluemapEnableListener = java.lang.reflect.Proxy.newProxyInstance(
-                    loader, new Class[]{consumerClass},
-                    (proxy, method, args) -> {
-                        if ("accept".equals(method.getName())) {
-                            setupBlueMap(args[0]);
-                            updateAllBlueMapMarkers();
-                        }
-                        return null;
-                    });
-
-            bluemapDisableListener = java.lang.reflect.Proxy.newProxyInstance(
-                    loader, new Class[]{consumerClass},
-                    (proxy, method, args) -> {
-                        if ("accept".equals(method.getName())) {
-                            removeAllBlueMapMarkers();
-                            bluemapSets.clear();
-                        }
-                        return null;
-                    });
-
-            onEnable.invoke(null, bluemapEnableListener);
-            onDisable.invoke(null, bluemapDisableListener);
-
-            java.util.Optional<?> opt = (java.util.Optional<?>) apiClass.getMethod("getInstance").invoke(null);
-            if (((Boolean) opt.getClass().getMethod("isPresent").invoke(opt))) {
-                Object api = opt.getClass().getMethod("get").invoke(opt);
-                setupBlueMap(api);
-                updateAllBlueMapMarkers();
-            }
-
-        } catch (Exception ex) {
-            getLogger().warning("BlueMap hook failed: " + ex.getMessage());
+        bluemapEnableListener = api -> {
+            setupBlueMap(api);
+            updateAllBlueMapMarkers();
+        };
+        bluemapDisableListener = api -> {
+            removeAllBlueMapMarkers();
             bluemapSets.clear();
-        }
+        };
+        BlueMapAPI.onEnable(bluemapEnableListener);
+        BlueMapAPI.onDisable(bluemapDisableListener);
+        BlueMapAPI.getInstance().ifPresent(bluemapEnableListener);
     }
 
-    private void setupBlueMap(Object api) throws Exception {
+    private void setupBlueMap(BlueMapAPI api) {
         bluemapSets.clear();
-        java.util.Collection<?> maps = (java.util.Collection<?>) api.getClass().getMethod("getMaps").invoke(api);
-        Class<?> markerSetClass = Class.forName("de.bluecolored.bluemap.api.markers.MarkerSet", true, bluemapLoader);
-        for (Object map : maps) {
-            @SuppressWarnings("unchecked")
-            java.util.Map<String, Object> sets = (java.util.Map<String, Object>) map.getClass().getMethod("getMarkerSets").invoke(map);
-            Object set = sets.get("houses");
+        for (BlueMapMap map : api.getMaps()) {
+            MarkerSet set = map.getMarkerSets().get("houses");
             if (set == null) {
-                Object builder = markerSetClass.getMethod("builder").invoke(null);
-                builder.getClass().getMethod("label", String.class).invoke(builder, "Houses");
-                builder.getClass().getMethod("toggleable", Boolean.class).invoke(builder, true);
-                set = builder.getClass().getMethod("build").invoke(builder);
-                sets.put("houses", set);
+                set = MarkerSet.builder()
+                        .label("Houses")
+                        .toggleable(true)
+                        .build();
+                map.getMarkerSets().put("houses", set);
             }
             bluemapSets.add(set);
         }
@@ -407,12 +366,9 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     }
 
     private void removeAllBlueMapMarkers() {
-        try {
-            for (Object set : bluemapSets) {
-                java.util.Map<?,?> markers = (java.util.Map<?,?>) set.getClass().getMethod("getMarkers").invoke(set);
-                markers.clear();
-            }
-        } catch (Exception ignored) {}
+        for (MarkerSet set : bluemapSets) {
+            set.getMarkers().clear();
+        }
     }
 
     private void updateAllDynmapMarkers() {
@@ -468,45 +424,41 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
 
     private void updateBlueMapMarker(int id) {
         if (bluemapSets.isEmpty()) return;
-        try {
-            String path = "houses." + id;
-            int x = housesConfig.getInt(path + ".x");
-            int y = housesConfig.getInt(path + ".y");
-            int z = housesConfig.getInt(path + ".z");
-            boolean rent = housesConfig.getBoolean(path + ".rent");
-            double price = housesConfig.getDouble(path + ".price");
-            String owner = housesConfig.getString(path + ".owner");
-            String ownerName = owner == null ? null : Bukkit.getOfflinePlayer(java.util.UUID.fromString(owner)).getName();
-            String label = (rent ? "[Rent] " : "[Buy] ") + "House #" + id;
-            String desc = (ownerName == null ? "Available" : "Owner: " + ownerName) + " Price: " + price;
-            Class<?> v3d = Class.forName("com.flowpowered.math.vector.Vector3d", true, bluemapLoader);
-            Object pos = v3d.getConstructor(double.class, double.class, double.class).newInstance(x + 0.5, (double) y, z + 0.5);
-            Class<?> poi = Class.forName("de.bluecolored.bluemap.api.markers.POIMarker", true, bluemapLoader);
-            for (Object set : bluemapSets) {
-                java.util.Map<String,Object> markers = (java.util.Map<String,Object>) set.getClass().getMethod("getMarkers").invoke(set);
-                Object marker = markers.get("house-" + id);
-                if (marker == null) {
-                    marker = poi.getConstructor(String.class, v3d).newInstance(label, pos);
-                    markers.put("house-" + id, marker);
-                } else {
-                    marker.getClass().getMethod("setPosition", v3d).invoke(marker, pos);
-                    marker.getClass().getMethod("setLabel", String.class).invoke(marker, label);
-                }
-                marker.getClass().getMethod("setDetail", String.class).invoke(marker, desc);
+        String path = "houses." + id;
+        int x = housesConfig.getInt(path + ".x");
+        int y = housesConfig.getInt(path + ".y");
+        int z = housesConfig.getInt(path + ".z");
+        boolean rent = housesConfig.getBoolean(path + ".rent");
+        double price = housesConfig.getDouble(path + ".price");
+        String owner = housesConfig.getString(path + ".owner");
+        String ownerName = owner == null ? null : Bukkit.getOfflinePlayer(java.util.UUID.fromString(owner)).getName();
+        String label = (rent ? "[Rent] " : "[Buy] ") + "House #" + id;
+        String desc = (ownerName == null ? "Available" : "Owner: " + ownerName) + " Price: " + price;
+        Vector3d pos = new Vector3d(x + 0.5, y, z + 0.5);
+        for (MarkerSet set : bluemapSets) {
+            java.util.Map<String, de.bluecolored.bluemap.api.markers.Marker> markers = set.getMarkers();
+            de.bluecolored.bluemap.api.markers.Marker base = markers.get("house-" + id);
+            if (!(base instanceof POIMarker)) {
+                POIMarker marker = POIMarker.builder()
+                        .label(label)
+                        .position(pos)
+                        .detail(desc)
+                        .build();
+                markers.put("house-" + id, marker);
+            } else {
+                POIMarker marker = (POIMarker) base;
+                marker.setPosition(pos);
+                marker.setLabel(label);
+                marker.setDetail(desc);
             }
-        } catch (Exception ex) {
-            getLogger().warning("BlueMap marker error: " + ex.getMessage());
         }
     }
 
     private void removeBlueMapMarker(int id) {
         if (bluemapSets.isEmpty()) return;
-        try {
-            for (Object set : bluemapSets) {
-                java.util.Map<?,?> markers = (java.util.Map<?,?>) set.getClass().getMethod("getMarkers").invoke(set);
-                markers.remove("house-" + id);
-            }
-        } catch (Exception ignored) {}
+        for (MarkerSet set : bluemapSets) {
+            set.getMarkers().remove("house-" + id);
+        }
     }
 
     private void checkRentPayments() {

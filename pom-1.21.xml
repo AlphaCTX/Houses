@@ -24,6 +24,10 @@
             <id>placeholderapi</id>
             <url>https://repo.extendedclip.com/content/repositories/placeholderapi/</url>
         </repository>
+        <repository>
+            <id>bluecolored</id>
+            <url>https://repo.bluecolored.de/releases</url>
+        </repository>
     </repositories>
 
     <dependencies>
@@ -55,6 +59,14 @@
             <groupId>me.clip</groupId>
             <artifactId>placeholderapi</artifactId>
             <version>2.11.5</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- BlueMap API for map markers -->
+        <dependency>
+            <groupId>de.bluecolored</groupId>
+            <artifactId>bluemap-api</artifactId>
+            <version>2.7.4</version>
             <scope>provided</scope>
         </dependency>
 
