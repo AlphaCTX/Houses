@@ -62,6 +62,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     private final java.util.List<Object> bluemapSets = new java.util.ArrayList<>();
     private Object bluemapEnableListener;
     private Object bluemapDisableListener;
+    private ClassLoader bluemapLoader;
 
     private boolean useMysql() {
         return getConfig().getBoolean("database.use-mysql", false);
@@ -284,6 +285,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
             } catch (Exception ignored) {}
             bluemapEnableListener = null;
             bluemapDisableListener = null;
+            bluemapLoader = null;
         }
     }
 
@@ -310,7 +312,11 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
 
     private void initBlueMap() {
         try {
-            Class<?> apiClass = Class.forName("de.bluecolored.bluemap.api.BlueMapAPI");
+            org.bukkit.plugin.Plugin bm = getServer().getPluginManager().getPlugin("BlueMap");
+            if (bm == null) return;
+            bluemapLoader = bm.getClass().getClassLoader();
+
+            Class<?> apiClass = Class.forName("de.bluecolored.bluemap.api.BlueMapAPI", true, bluemapLoader);
             Class<?> consumerClass = Class.forName("java.util.function.Consumer");
             java.lang.reflect.Method onEnable = apiClass.getMethod("onEnable", consumerClass);
             java.lang.reflect.Method onDisable = apiClass.getMethod("onDisable", consumerClass);
@@ -356,7 +362,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     private void setupBlueMap(Object api) throws Exception {
         bluemapSets.clear();
         java.util.Collection<?> maps = (java.util.Collection<?>) api.getClass().getMethod("getMaps").invoke(api);
-        Class<?> markerSetClass = Class.forName("de.bluecolored.bluemap.api.markers.MarkerSet");
+        Class<?> markerSetClass = Class.forName("de.bluecolored.bluemap.api.markers.MarkerSet", true, bluemapLoader);
         for (Object map : maps) {
             @SuppressWarnings("unchecked")
             java.util.Map<String, Object> sets = (java.util.Map<String, Object>) map.getClass().getMethod("getMarkerSets").invoke(map);
@@ -473,9 +479,9 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
             String ownerName = owner == null ? null : Bukkit.getOfflinePlayer(java.util.UUID.fromString(owner)).getName();
             String label = (rent ? "[Rent] " : "[Buy] ") + "House #" + id;
             String desc = (ownerName == null ? "Available" : "Owner: " + ownerName) + " Price: " + price;
-            Class<?> v3d = Class.forName("com.flowpowered.math.vector.Vector3d");
+            Class<?> v3d = Class.forName("com.flowpowered.math.vector.Vector3d", true, bluemapLoader);
             Object pos = v3d.getConstructor(double.class, double.class, double.class).newInstance(x + 0.5, (double) y, z + 0.5);
-            Class<?> poi = Class.forName("de.bluecolored.bluemap.api.markers.POIMarker");
+            Class<?> poi = Class.forName("de.bluecolored.bluemap.api.markers.POIMarker", true, bluemapLoader);
             for (Object set : bluemapSets) {
                 java.util.Map<String,Object> markers = (java.util.Map<String,Object>) set.getClass().getMethod("getMarkers").invoke(set);
                 Object marker = markers.get("house-" + id);
