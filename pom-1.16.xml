@@ -44,6 +44,14 @@
             <version>3.0.2</version>
         </dependency>
 
+        <!-- PlaceholderAPI for placeholders -->
+        <dependency>
+            <groupId>me.clip</groupId>
+            <artifactId>placeholderapi</artifactId>
+            <version>2.11.5</version>
+            <scope>provided</scope>
+        </dependency>
+
         <!-- MySQL Connector (in je JAR of server-classpath) -->
         <dependency>
             <groupId>mysql</groupId>

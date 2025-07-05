@@ -77,6 +77,9 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         startRentTask();
         startCleanupTask();
         new Metrics(this, 26286);
+        if (getServer().getPluginManager().isPluginEnabled("PlaceholderAPI")) {
+            new HousesPlaceholder(this).register();
+        }
                 getLogger().info("  ╭───────────────────────╮");
                 getLogger().info("  │      AlphaCTX's       │");
                 getLogger().info("  │        Houses         │");

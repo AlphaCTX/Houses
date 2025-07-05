@@ -46,6 +46,14 @@
             <version>3.0.2</version>
         </dependency>
 
+        <!-- PlaceholderAPI for placeholders -->
+        <dependency>
+            <groupId>me.clip</groupId>
+            <artifactId>placeholderapi</artifactId>
+            <version>2.11.5</version>
+            <scope>provided</scope>
+        </dependency>
+
         <!-- MySQL Connector (één van beide: bundelen óf op server-classpath) -->
         <dependency>
             <groupId>mysql</groupId>
