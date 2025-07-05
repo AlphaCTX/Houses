@@ -315,8 +315,10 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
             java.lang.reflect.Method onEnable = apiClass.getMethod("onEnable", consumerClass);
             java.lang.reflect.Method onDisable = apiClass.getMethod("onDisable", consumerClass);
 
+            ClassLoader loader = getClass().getClassLoader();
+
             bluemapEnableListener = java.lang.reflect.Proxy.newProxyInstance(
-                    consumerClass.getClassLoader(), new Class[]{consumerClass},
+                    loader, new Class[]{consumerClass},
                     (proxy, method, args) -> {
                         if ("accept".equals(method.getName())) {
                             setupBlueMap(args[0]);
@@ -326,7 +328,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
                     });
 
             bluemapDisableListener = java.lang.reflect.Proxy.newProxyInstance(
-                    consumerClass.getClassLoader(), new Class[]{consumerClass},
+                    loader, new Class[]{consumerClass},
                     (proxy, method, args) -> {
                         if ("accept".equals(method.getName())) {
                             removeAllBlueMapMarkers();
