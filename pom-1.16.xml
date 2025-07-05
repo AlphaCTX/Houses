@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.alphactx</groupId>
     <artifactId>Houses</artifactId>
-    <version>1.1.7-mc1.16</version>
+    <version>1.2.1-mc1.16</version>
     <packaging>jar</packaging>
 
     <repositories>
@@ -17,6 +17,10 @@
         <repository>
             <id>jitpack.io</id>
             <url>https://jitpack.io</url>
+        </repository>
+        <repository>
+            <id>placeholderapi</id>
+            <url>https://repo.extendedclip.com/content/repositories/placeholderapi/</url>
         </repository>
     </repositories>
 
