@@ -34,6 +34,7 @@ import de.bluecolored.bluemap.api.markers.POIMarker;
 import com.flowpowered.math.vector.Vector3d;
 
 import java.io.File;
+import java.util.stream.Collectors;
 import java.util.*;
 import java.sql.*;
 
