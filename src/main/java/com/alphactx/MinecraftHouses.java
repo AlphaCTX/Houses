@@ -24,7 +24,7 @@ import org.bukkit.event.block.SignChangeEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.plugin.RegisteredServiceProvider;F
+import org.bukkit.plugin.RegisteredServiceProvider;
 import net.milkbowl.vault.economy.Economy;
 import org.bstats.bukkit.Metrics;
 import de.bluecolored.bluemap.api.BlueMapAPI;
@@ -34,6 +34,7 @@ import de.bluecolored.bluemap.api.markers.POIMarker;
 import com.flowpowered.math.vector.Vector3d;
 
 import java.io.File;
+import java.util.stream.Collectors;
 import java.util.*;
 import java.sql.*;
 
@@ -432,8 +433,13 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         double price = housesConfig.getDouble(path + ".price");
         String owner = housesConfig.getString(path + ".owner");
         String ownerName = owner == null ? null : Bukkit.getOfflinePlayer(java.util.UUID.fromString(owner)).getName();
-        String label = (rent ? "[Rent] " : "[Buy] ") + "House #" + id;
-        String desc = (ownerName == null ? "Available" : "Owner: " + ownerName) + " Price: " + price;
+        String label = "<b>[" + (rent ? "Rentable" : "Purchasable") + " property]</b>";
+        StringBuilder descBuilder = new StringBuilder();
+        descBuilder.append("Price: ").append(price)
+                .append("<br>Number: ").append(id)
+                .append("<br>Owner: ")
+                .append(ownerName == null ? "none" : ownerName);
+        String desc = descBuilder.toString();
         Vector3d pos = new Vector3d(x + 0.5, y, z + 0.5);
         for (MarkerSet set : bluemapSets) {
             java.util.Map<String, de.bluecolored.bluemap.api.markers.Marker> markers = set.getMarkers();
@@ -670,9 +676,16 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     }
 
     private void sendConfiguredMessage(Player player, String key, int id) {
+        sendConfiguredMessage(player, key, id, -1);
+    }
+
+    private void sendConfiguredMessage(Player player, String key, int id, double price) {
         String msg = getConfig().getString("messages." + key);
         if (msg != null) {
             msg = msg.replace("{id}", String.valueOf(id));
+            if (msg.contains("{price}")) {
+                msg = msg.replace("{price}", String.valueOf(price));
+            }
             player.sendMessage(ChatColor.translateAlternateColorCodes('&', msg));
         }
     }
@@ -837,8 +850,9 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
                 p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.GRAY + "Sneak and right click to confirm");
             }
         } else if (owner.equals(p.getUniqueId().toString())) {
-            double sellPrice = price * 0.75;
-            p.sendMessage(ChatColor.YELLOW + "Sell price: " + sellPrice);
+            double percent = getConfig().getDouble("sell-percentage", 0.75);
+            double sellPrice = price * percent;
+            sendConfiguredMessage(p, "sell-price-info", id, sellPrice);
             if (p.isSneaking()) {
                 economy.depositPlayer(p, sellPrice);
                 housesConfig.set(path + ".owner", null);
@@ -998,7 +1012,8 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         String path = "houses." + id;
         boolean rent = housesConfig.getBoolean(path + ".rent");
         double price = housesConfig.getDouble(path + ".price");
-        double sellPrice = price * 0.75;
+        double percent = getConfig().getDouble("sell-percentage", 0.75);
+        double sellPrice = price * percent;
         economy.depositPlayer(p, sellPrice);
         housesConfig.set(path + ".owner", null);
         housesConfig.set(path + ".trusted", new ArrayList<>());
