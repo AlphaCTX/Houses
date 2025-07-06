@@ -95,11 +95,11 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
             new HousesPlaceholder(this).register();
         }
         setupMapIntegrations();
-                getLogger().info("  /-----------------------\");
+                getLogger().info("  /-----------------------\\");
                 getLogger().info("  │      AlphaCTX's       |");
                 getLogger().info("  │        Houses         |");
 		getLogger().info("  │         Plugin        |");
-		getLogger().info("  \-----------------------/");
+		getLogger().info("  \\-----------------------/");
 		getLogger().info("        Houses Enabled!");
     }
 
