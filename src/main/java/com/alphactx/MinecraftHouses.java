@@ -95,11 +95,11 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
             new HousesPlaceholder(this).register();
         }
         setupMapIntegrations();
-                getLogger().info("  ╭───────────────────────╮");
-                getLogger().info("  │      AlphaCTX's       │");
-                getLogger().info("  │        Houses         │");
-		getLogger().info("  │         Plugin        │");
-		getLogger().info("  ╰───────────────────────╯");
+                getLogger().info("  /-----------------------\");
+                getLogger().info("  │      AlphaCTX's       |");
+                getLogger().info("  │        Houses         |");
+		getLogger().info("  │         Plugin        |");
+		getLogger().info("  \-----------------------/");
 		getLogger().info("        Houses Enabled!");
     }
 
@@ -321,6 +321,7 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         BlueMapAPI.onEnable(bluemapEnableListener);
         BlueMapAPI.onDisable(bluemapDisableListener);
         BlueMapAPI.getInstance().ifPresent(bluemapEnableListener);
+	getLogger().info("Houses hooked onto Bluemap!");
     }
 
     private void setupBlueMap(BlueMapAPI api) {
