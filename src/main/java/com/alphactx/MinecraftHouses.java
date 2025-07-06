@@ -675,9 +675,16 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     }
 
     private void sendConfiguredMessage(Player player, String key, int id) {
+        sendConfiguredMessage(player, key, id, -1);
+    }
+
+    private void sendConfiguredMessage(Player player, String key, int id, double price) {
         String msg = getConfig().getString("messages." + key);
         if (msg != null) {
             msg = msg.replace("{id}", String.valueOf(id));
+            if (msg.contains("{price}")) {
+                msg = msg.replace("{price}", String.valueOf(price));
+            }
             player.sendMessage(ChatColor.translateAlternateColorCodes('&', msg));
         }
     }
@@ -842,8 +849,9 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
                 p.sendMessage(ChatColor.YELLOW + "[Houses]" + ChatColor.GRAY + "Sneak and right click to confirm");
             }
         } else if (owner.equals(p.getUniqueId().toString())) {
-            double sellPrice = price * 0.75;
-            p.sendMessage(ChatColor.YELLOW + "Sell price: " + sellPrice);
+            double percent = getConfig().getDouble("sell-percentage", 0.75);
+            double sellPrice = price * percent;
+            sendConfiguredMessage(p, "sell-price-info", id, sellPrice);
             if (p.isSneaking()) {
                 economy.depositPlayer(p, sellPrice);
                 housesConfig.set(path + ".owner", null);
@@ -1003,7 +1011,8 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         String path = "houses." + id;
         boolean rent = housesConfig.getBoolean(path + ".rent");
         double price = housesConfig.getDouble(path + ".price");
-        double sellPrice = price * 0.75;
+        double percent = getConfig().getDouble("sell-percentage", 0.75);
+        double sellPrice = price * percent;
         economy.depositPlayer(p, sellPrice);
         housesConfig.set(path + ".owner", null);
         housesConfig.set(path + ".trusted", new ArrayList<>());

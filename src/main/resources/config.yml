@@ -34,6 +34,8 @@ cleanup:
   check-interval: 86400 # seconds
   inactive-days: 30
 
+sell-percentage: 0.75 # fraction of price returned when selling
+
 #===========================
 #=     CUSTOM MESSAGES     =
 #===========================
@@ -46,6 +48,7 @@ messages:
   rent-paid: "&aRent for house {id} paid"
   rent-stopped: "&cRent unpaid, house {id} lost"
   inactive-removed: "&cHouse {id} removed due to inactivity"
+  sell-price-info: "&eSell price: {price}"
 
 #===========================
 #=       MAP SETTINGS     =

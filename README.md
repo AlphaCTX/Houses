@@ -47,3 +47,7 @@ database set `database.use-mysql` to `true` in `config.yml` and adjust the
 `host`, `port`, `user`, `pass` and `database` settings. When MySQL is enabled
 data is saved automatically every `database.save-interval` seconds. Set
 `database.debug` to `true` to print SQL operations to the console.
+
+The `sell-percentage` option controls what fraction of a house's price a player
+receives back when selling. The default is `0.75` which means selling a house
+returns 75% of its purchase price.
