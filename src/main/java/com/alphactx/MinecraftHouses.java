@@ -569,32 +569,54 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
 		if (conn == null) return;
 		debug("Saving houses to database");
 
-		try {
-			// 1) Haal eerst alle huidige IDs in de DB op
-			Set<Integer> dbIds = new HashSet<>();
-			try (Statement st = conn.createStatement();
-				 ResultSet rs = st.executeQuery("SELECT id FROM houses")) {
-				while (rs.next()) {
-					dbIds.add(rs.getInt("id"));
-				}
-			}
+                try {
+                        // 1) Haal eerst alle huidige IDs in de DB op
+                        Set<Integer> dbIds = new HashSet<>();
+                        try (Statement st = conn.createStatement();
+                                 ResultSet rs = st.executeQuery("SELECT id FROM houses")) {
+                                while (rs.next()) {
+                                        dbIds.add(rs.getInt("id"));
+                                }
+                        }
 
-			// 2) Bereid je UPSERT voor (voegt toe of werkt bij)
-			String sqlUpsert = ""
-				+ "INSERT INTO houses "
-				+ "(rent, price, owner, next_rent, world, x, y, z, doors, trusted) "
-				+ "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
-				+ "ON DUPLICATE KEY UPDATE "
-				+ "rent      = VALUES(rent), "
-				+ "price     = VALUES(price), "
-				+ "owner     = VALUES(owner), "
-				+ "next_rent = VALUES(next_rent), "
-				+ "world     = VALUES(world), "
-				+ "x         = VALUES(x), "
-				+ "y         = VALUES(y), "
-				+ "z         = VALUES(z), "
-				+ "doors     = VALUES(doors), "
-				+ "trusted   = VALUES(trusted)";
+                        // 2) Bereid het UPSERT statement voor
+                        boolean sqlite = false;
+                        try {
+                                sqlite = conn.getMetaData().getURL().startsWith("jdbc:sqlite");
+                        } catch (SQLException ignore) {}
+
+                        String sqlUpsert;
+                        if (sqlite) {
+                                sqlUpsert = "INSERT INTO houses "
+                                        + "(id, rent, price, owner, next_rent, world, x, y, z, doors, trusted) "
+                                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                                        + "ON CONFLICT(id) DO UPDATE SET "
+                                        + "rent=excluded.rent, "
+                                        + "price=excluded.price, "
+                                        + "owner=excluded.owner, "
+                                        + "next_rent=excluded.next_rent, "
+                                        + "world=excluded.world, "
+                                        + "x=excluded.x, "
+                                        + "y=excluded.y, "
+                                        + "z=excluded.z, "
+                                        + "doors=excluded.doors, "
+                                        + "trusted=excluded.trusted";
+                        } else {
+                                sqlUpsert = "INSERT INTO houses "
+                                        + "(id, rent, price, owner, next_rent, world, x, y, z, doors, trusted) "
+                                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                                        + "ON DUPLICATE KEY UPDATE "
+                                        + "rent=VALUES(rent), "
+                                        + "price=VALUES(price), "
+                                        + "owner=VALUES(owner), "
+                                        + "next_rent=VALUES(next_rent), "
+                                        + "world=VALUES(world), "
+                                        + "x=VALUES(x), "
+                                        + "y=VALUES(y), "
+                                        + "z=VALUES(z), "
+                                        + "doors=VALUES(doors), "
+                                        + "trusted=VALUES(trusted)";
+                        }
 
 			try (PreparedStatement ps = conn.prepareStatement(sqlUpsert, Statement.RETURN_GENERATED_KEYS)) {
 				Set<Integer> configIds = new HashSet<>();
@@ -605,19 +627,20 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
 						int id = Integer.parseInt(idStr);
 						configIds.add(id);
 
-						String path = "houses." + id;
-						ps.setBoolean(1, housesConfig.getBoolean(path + ".rent"));
-						ps.setDouble (2, housesConfig.getDouble(path + ".price"));
-						ps.setString (3, housesConfig.getString(path + ".owner"));
-						ps.setLong   (4, housesConfig.getLong(path + ".nextRent", 0L));
-						ps.setString (5, housesConfig.getString(path + ".world"));
-						ps.setInt    (6, housesConfig.getInt(path + ".x"));
-						ps.setInt    (7, housesConfig.getInt(path + ".y"));
-						ps.setInt    (8, housesConfig.getInt(path + ".z"));
-						List<String> doors   = housesConfig.getStringList(path + ".doors");
-						List<String> trusted = housesConfig.getStringList(path + ".trusted");
-						ps.setString (9,  String.join(";", doors));
-						ps.setString (10, String.join(";", trusted));
+                                                String path = "houses." + id;
+                                                ps.setInt    (1, id);
+                                                ps.setBoolean(2, housesConfig.getBoolean(path + ".rent"));
+                                                ps.setDouble (3, housesConfig.getDouble(path + ".price"));
+                                                ps.setString (4, housesConfig.getString(path + ".owner"));
+                                                ps.setLong   (5, housesConfig.getLong(path + ".nextRent", 0L));
+                                                ps.setString (6, housesConfig.getString(path + ".world"));
+                                                ps.setInt    (7, housesConfig.getInt(path + ".x"));
+                                                ps.setInt    (8, housesConfig.getInt(path + ".y"));
+                                                ps.setInt    (9, housesConfig.getInt(path + ".z"));
+                                                List<String> doors   = housesConfig.getStringList(path + ".doors");
+                                                List<String> trusted = housesConfig.getStringList(path + ".trusted");
+                                                ps.setString (10, String.join(";", doors));
+                                                ps.setString (11, String.join(";", trusted));
 
 						ps.addBatch();
 					}
