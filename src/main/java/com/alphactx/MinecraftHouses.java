@@ -24,7 +24,7 @@ import org.bukkit.event.block.SignChangeEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.plugin.RegisteredServiceProvider;
+import org.bukkit.plugin.RegisteredServiceProvider;F
 import net.milkbowl.vault.economy.Economy;
 import org.bstats.bukkit.Metrics;
 import de.bluecolored.bluemap.api.BlueMapAPI;
@@ -560,37 +560,96 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
     }
 
     private void saveHousesToConnection(Connection conn) {
-        if (conn == null) return;
-        debug("Saving houses to database");
-        try (Statement st = conn.createStatement()) {
-            st.executeUpdate("DELETE FROM houses");
-            if (housesConfig.isConfigurationSection("houses")) {
-                for (String idStr : housesConfig.getConfigurationSection("houses").getKeys(false)) {
-                    String path = "houses." + idStr;
-                    PreparedStatement ps = conn.prepareStatement(
-                            "INSERT INTO houses(id,rent,price,owner,next_rent,world,x,y,z,doors,trusted) VALUES (?,?,?,?,?,?,?,?,?,?,?)");
-                    ps.setInt(1, Integer.parseInt(idStr));
-                    ps.setBoolean(2, housesConfig.getBoolean(path + ".rent"));
-                    ps.setDouble(3, housesConfig.getDouble(path + ".price"));
-                    ps.setString(4, housesConfig.getString(path + ".owner"));
-                    ps.setLong(5, housesConfig.getLong(path + ".nextRent", 0L));
-                    ps.setString(6, housesConfig.getString(path + ".world"));
-                    ps.setInt(7, housesConfig.getInt(path + ".x"));
-                    ps.setInt(8, housesConfig.getInt(path + ".y"));
-                    ps.setInt(9, housesConfig.getInt(path + ".z"));
-                    java.util.List<String> doors = housesConfig.getStringList(path + ".doors");
-                    ps.setString(10, String.join(";", doors));
-                    java.util.List<String> trusted = housesConfig.getStringList(path + ".trusted");
-                    ps.setString(11, String.join(";", trusted));
-                    ps.executeUpdate();
-                    ps.close();
-                }
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
+		if (conn == null) return;
+		debug("Saving houses to database");
 
+		try {
+			// 1) Haal eerst alle huidige IDs in de DB op
+			Set<Integer> dbIds = new HashSet<>();
+			try (Statement st = conn.createStatement();
+				 ResultSet rs = st.executeQuery("SELECT id FROM houses")) {
+				while (rs.next()) {
+					dbIds.add(rs.getInt("id"));
+				}
+			}
+
+			// 2) Bereid je UPSERT voor (voegt toe of werkt bij)
+			String sqlUpsert = ""
+				+ "INSERT INTO houses "
+				+ "(rent, price, owner, next_rent, world, x, y, z, doors, trusted) "
+				+ "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+				+ "ON DUPLICATE KEY UPDATE "
+				+ "rent      = VALUES(rent), "
+				+ "price     = VALUES(price), "
+				+ "owner     = VALUES(owner), "
+				+ "next_rent = VALUES(next_rent), "
+				+ "world     = VALUES(world), "
+				+ "x         = VALUES(x), "
+				+ "y         = VALUES(y), "
+				+ "z         = VALUES(z), "
+				+ "doors     = VALUES(doors), "
+				+ "trusted   = VALUES(trusted)";
+
+			try (PreparedStatement ps = conn.prepareStatement(sqlUpsert, Statement.RETURN_GENERATED_KEYS)) {
+				Set<Integer> configIds = new HashSet<>();
+
+				// Loop over config en doe addBatch
+				if (housesConfig.isConfigurationSection("houses")) {
+					for (String idStr : housesConfig.getConfigurationSection("houses").getKeys(false)) {
+						int id = Integer.parseInt(idStr);
+						configIds.add(id);
+
+						String path = "houses." + id;
+						ps.setBoolean(1, housesConfig.getBoolean(path + ".rent"));
+						ps.setDouble (2, housesConfig.getDouble(path + ".price"));
+						ps.setString (3, housesConfig.getString(path + ".owner"));
+						ps.setLong   (4, housesConfig.getLong(path + ".nextRent", 0L));
+						ps.setString (5, housesConfig.getString(path + ".world"));
+						ps.setInt    (6, housesConfig.getInt(path + ".x"));
+						ps.setInt    (7, housesConfig.getInt(path + ".y"));
+						ps.setInt    (8, housesConfig.getInt(path + ".z"));
+						List<String> doors   = housesConfig.getStringList(path + ".doors");
+						List<String> trusted = housesConfig.getStringList(path + ".trusted");
+						ps.setString (9,  String.join(";", doors));
+						ps.setString (10, String.join(";", trusted));
+
+						ps.addBatch();
+					}
+				}
+
+				// 3) Voer batch upsert uit
+				ps.executeBatch();
+
+				// (optioneel) log nieuwe gegenereerde keys
+				try (ResultSet rs = ps.getGeneratedKeys()) {
+					while (rs.next()) {
+						debug("Upserted house id=" + rs.getInt(1));
+					}
+				}
+
+				// 4) Verwijder uit DB wat *niet* meer in config zit
+				Set<Integer> toDelete = new HashSet<>(dbIds);
+				toDelete.removeAll(configIds);
+				if (!toDelete.isEmpty()) {
+					String placeholders = toDelete.stream()
+												  .map(i -> "?")
+												  .collect(Collectors.joining(","));
+					String sqlDel = "DELETE FROM houses WHERE id IN (" + placeholders + ")";
+					try (PreparedStatement psDel = conn.prepareStatement(sqlDel)) {
+						int i = 1;
+						for (int id : toDelete) {
+							psDel.setInt(i++, id);
+						}
+						int deleted = psDel.executeUpdate();
+						debug("Deleted " + deleted + " houses: " + toDelete);
+					}
+				}
+			}
+
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+	}
 
     public void backupToMysql() {
         try (Connection source = connectSqlite(); Connection target = connectMysql()) {
