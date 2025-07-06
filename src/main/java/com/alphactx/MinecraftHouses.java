@@ -24,7 +24,7 @@ import org.bukkit.event.block.SignChangeEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.plugin.RegisteredServiceProvider;F
+import org.bukkit.plugin.RegisteredServiceProvider;
 import net.milkbowl.vault.economy.Economy;
 import org.bstats.bukkit.Metrics;
 import de.bluecolored.bluemap.api.BlueMapAPI;
@@ -432,8 +432,13 @@ public class MinecraftHouses extends JavaPlugin implements Listener {
         double price = housesConfig.getDouble(path + ".price");
         String owner = housesConfig.getString(path + ".owner");
         String ownerName = owner == null ? null : Bukkit.getOfflinePlayer(java.util.UUID.fromString(owner)).getName();
-        String label = (rent ? "[Rent] " : "[Buy] ") + "House #" + id;
-        String desc = (ownerName == null ? "Available" : "Owner: " + ownerName) + " Price: " + price;
+        String label = "<b>[" + (rent ? "Rentable" : "Purchasable") + " property]</b>";
+        StringBuilder descBuilder = new StringBuilder();
+        descBuilder.append("Price: ").append(price)
+                .append("<br>Number: ").append(id)
+                .append("<br>Owner: ")
+                .append(ownerName == null ? "none" : ownerName);
+        String desc = descBuilder.toString();
         Vector3d pos = new Vector3d(x + 0.5, y, z + 0.5);
         for (MarkerSet set : bluemapSets) {
             java.util.Map<String, de.bluecolored.bluemap.api.markers.Marker> markers = set.getMarkers();
